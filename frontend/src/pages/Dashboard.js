@@ -71,7 +71,7 @@ const Dashboard = () => {
   const loadServers = async () => {
     try {
       const response = await serverAPI.list();
-      const validServers = (response.data || []).filter(server => {
+      const validServers = (response.data?.data || []).filter(server => {
         if (!server || !server.id || !server.name || server.name.trim() === '') {
           return false;
         }
@@ -128,7 +128,7 @@ const Dashboard = () => {
         return;
       }
       const response = await configAPI.list(serverId);
-      const configs = response.data || [];
+      const configs = response.data?.data || [];
       setConfigStats({
         totalConfigs: configs.length,
         activeConfigs: configs.filter(c => !c.disabled).length,
@@ -210,7 +210,7 @@ const Dashboard = () => {
   const loadServerStats = async (serverId) => {
     try {
       const response = await serverAPI.list();
-      const servers = response.data || [];
+      const servers = response.data?.data || [];
       setServerStats({
         totalServers: servers.length,
         onlineServers: servers.filter(s => s.status === 'online').length,

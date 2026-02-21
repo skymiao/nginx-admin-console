@@ -25,13 +25,13 @@ router.get('/', requirePermission('config:read'), (req, res) => {
     comment: record.comment,
     createdAt: formatToChinaTime(record.created_at)
   }));
-  res.json(formattedHistory);
+  res.json({ success: true, data: formattedHistory });
 });
 
 router.get('/:id', requirePermission('config:read'), (req, res) => {
   const record = db.prepare('SELECT * FROM config_history WHERE id = ?').get(req.params.id);
   if (!record) {
-    return res.status(404).json({ message: '历史记录不存在' });
+    return res.status(404).json({ success: false, message: '历史记录不存在' });
   }
   const formattedRecord = {
     id: record.id,
@@ -42,29 +42,33 @@ router.get('/:id', requirePermission('config:read'), (req, res) => {
     comment: record.comment,
     createdAt: formatToChinaTime(record.created_at)
   };
-  res.json(formattedRecord);
+  res.json({ success: true, data: formattedRecord });
 });
 
 router.post('/:id/restore', requirePermission('config:write'), (req, res) => {
   const record = db.prepare('SELECT * FROM config_history WHERE id = ?').get(req.params.id);
   if (!record) {
-    return res.status(404).json({ message: '历史记录不存在' });
-  }
-
-  if (!record.content) {
-    return res.status(400).json({ message: '该记录没有可恢复的内容' });
+    return res.status(404).json({ success: false, message: '历史记录不存在' });
   }
 
   try {
-    fs.writeFileSync(record.config_path, record.content, 'utf-8');
-    
-    db.prepare(
-      'INSERT INTO config_history (config_path, action, operator, content, comment) VALUES (?, ?, ?, ?, ?)'
-    ).run(record.config_path, 'restore', req.user.username, record.content, `从历史记录 #${record.id} 恢复`);
+    fs.writeFileSync(record.config_path, record.content, 'utf8');
 
-    res.json({ message: '恢复成功' });
+    db.prepare(`
+      INSERT INTO config_history (config_path, action, operator, content, comment)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      record.config_path,
+      'restore',
+      req.user.username,
+      record.content,
+      `从历史记录恢复 (ID: ${record.id})`
+    );
+
+    res.json({ success: true, message: '恢复成功' });
   } catch (error) {
-    res.status(500).json({ message: '恢复失败', error: error.message });
+    console.error('Failed to restore config:', error);
+    res.status(500).json({ success: false, message: '恢复失败', error: error.message });
   }
 });
 

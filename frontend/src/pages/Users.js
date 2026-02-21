@@ -53,7 +53,7 @@ const Users = () => {
     try {
       setLoading(true);
       const response = await userAPI.list();
-      setUsers(response.data || []);
+      setUsers(response.data?.data || []);
     } catch (error) {
       console.error('Failed to load users:', error);
       message.error('加载用户列表失败');
@@ -65,7 +65,7 @@ const Users = () => {
   const loadRoles = async () => {
     try {
       const response = await roleAPI.list();
-      setRoles(response.data || []);
+      setRoles(response.data?.data || []);
     } catch (error) {
       console.error('Failed to load roles:', error);
       message.error('加载角色列表失败');

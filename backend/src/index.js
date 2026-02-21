@@ -12,6 +12,7 @@ const { addSudoSupport } = require('./migrations/addSudoSupport');
 const { updateRolePermissions } = require('./migrations/updateRolePermissions');
 const { updateDefaultServerStatusUrl } = require('./migrations/updateDefaultServerStatusUrl');
 const { updateRolePermissions: updateRolePermissions2 } = require('./migrations/updateRolePermissions2');
+const addIndexes = require('./migrations/addIndexes');
 const { errorHandler } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 
@@ -28,6 +29,7 @@ addSudoSupport();
 updateRolePermissions();
 updateDefaultServerStatusUrl();
 updateRolePermissions2();
+addIndexes();
 
 app.use(helmet({
   contentSecurityPolicy: {

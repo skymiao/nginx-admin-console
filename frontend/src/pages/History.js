@@ -37,7 +37,7 @@ const History = () => {
     try {
       setLoading(true);
       const response = await historyAPI.list();
-      setHistory(response.data || []);
+      setHistory(response.data?.data || []);
     } catch (error) {
       message.error('加载历史记录失败');
       console.error('Failed to load history:', error);
@@ -52,7 +52,7 @@ const History = () => {
       const response = await historyAPI.get(record.id);
       setCurrentHistory({
         ...record,
-        content: response.data.content,
+        content: response.data?.data?.content,
       });
       setDetailModalVisible(true);
     } catch (error) {

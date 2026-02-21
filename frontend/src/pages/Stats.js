@@ -72,7 +72,7 @@ const Stats = () => {
   const loadServers = async () => {
     try {
       const response = await serverAPI.list();
-      const serverList = response.data || [];
+      const serverList = response.data?.data || [];
       setServers(serverList);
       if (serverList.length > 0) {
         setSelectedServer(serverList[0].id);

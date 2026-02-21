@@ -30,7 +30,7 @@ const insertDefaultServer = () => {
   if (checkDefault.count === 0) {
     const insertSQL = `
       INSERT INTO servers (name, host, port, username, password, description, nginx_config_path, nginx_log_path, nginx_status_url, is_default)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `;
     
     db.prepare(insertSQL).run(

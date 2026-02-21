@@ -45,7 +45,7 @@ const Roles = () => {
     try {
       setLoading(true);
       const response = await roleAPI.list();
-      setRoles(response.data || []);
+      setRoles(response.data?.data || []);
     } catch (error) {
       console.error('Failed to load roles:', error);
       message.error('加载角色列表失败');
@@ -57,7 +57,7 @@ const Roles = () => {
   const loadPermissions = async () => {
     try {
       const response = await roleAPI.getPermissions();
-      setPermissions(response.data || []);
+      setPermissions(response.data?.data || []);
     } catch (error) {
       console.error('Failed to load permissions:', error);
       message.error('加载权限列表失败');

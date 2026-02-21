@@ -188,10 +188,10 @@ router.get('/', requirePermission('config:read'), async (req, res) => {
         }
       }
 
-      res.json(configs);
+      res.json({ success: true, data: configs });
     } catch (error) {
       console.error('Remote config list error:', error);
-      res.status(500).json({ message: '获取远程配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '获取远程配置文件失败', error: error.message });
     }
   } else {
     const configPath = getConfigPath();
@@ -202,7 +202,7 @@ router.get('/', requirePermission('config:read'), async (req, res) => {
     try {
       if (!fs.existsSync(configPath)) {
         console.log('Config path does not exist:', configPath);
-        return res.json([]);
+        return res.json({ success: true, data: [] });
       }
 
       const files = fs.readdirSync(configPath);
@@ -242,11 +242,11 @@ router.get('/', requirePermission('config:read'), async (req, res) => {
       }
     } catch (error) {
       console.error('Error reading configs:', error);
-      res.status(500).json({ message: '读取配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '读取配置文件失败', error: error.message });
       return;
     }
 
-    res.json(configs);
+    res.json({ success: true, data: configs });
   }
 });
 
@@ -254,7 +254,7 @@ router.get('/content', requirePermission('config:read'), async (req, res) => {
   const { path: configPath, serverId } = req.query;
   
   if (!configPath) {
-    return res.status(400).json({ message: '缺少路径参数' });
+    return res.status(400).json({ success: false, message: '缺少路径参数' });
   }
 
   const server = getServer(serverId);
@@ -262,23 +262,23 @@ router.get('/content', requirePermission('config:read'), async (req, res) => {
   if (server) {
     try {
       const { output } = await executeRemoteCommand(server, `cat ${configPath}`);
-      res.json({ content: output });
+      res.json({ success: true, data: { content: output } });
     } catch (error) {
       console.error('Remote config read error:', error);
-      res.status(500).json({ message: '读取远程配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '读取远程配置文件失败', error: error.message });
     }
   } else {
     console.log('Reading config file:', configPath);
     
     try {
       if (!fs.existsSync(configPath)) {
-        return res.status(404).json({ message: '配置文件不存在' });
+        return res.status(404).json({ success: false, message: '配置文件不存在' });
       }
 
       const content = fs.readFileSync(configPath, 'utf-8');
-      res.json({ content });
+      res.json({ success: true, data: { content } });
     } catch (error) {
-      res.status(500).json({ message: '读取配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '读取配置文件失败', error: error.message });
     }
   }
 });
@@ -292,13 +292,13 @@ router.get('/:path(*)', requirePermission('config:read'), (req, res) => {
   
   try {
     if (!fs.existsSync(configPath)) {
-      return res.status(404).json({ message: '配置文件不存在' });
+      return res.status(404).json({ success: false, message: '配置文件不存在' });
     }
 
     const content = fs.readFileSync(configPath, 'utf-8');
-    res.json({ content });
+    res.json({ success: true, data: { content } });
   } catch (error) {
-    res.status(500).json({ message: '读取配置文件失败', error: error.message });
+    res.status(500).json({ success: false, message: '读取配置文件失败', error: error.message });
   }
 });
 
@@ -306,7 +306,7 @@ router.post('/', requirePermission('config:write'), async (req, res) => {
   const { path: configPath, content, comment, serverId } = req.body;
 
   if (!configPath || !content) {
-    return res.status(400).json({ message: '缺少必要字段' });
+    return res.status(400).json({ success: false, message: '缺少必要字段' });
   }
 
   const server = getServer(serverId);
@@ -317,15 +317,18 @@ router.post('/', requirePermission('config:write'), async (req, res) => {
       await executeRemoteCommand(server, `mkdir -p ${dir}`);
       await executeRemoteCommand(server, `cat > ${configPath} << 'EOF'\n${content}\nEOF`);
       res.status(201).json({
-        name: path.basename(configPath),
-        path: configPath,
-        size: content.length,
-        lastModified: new Date(),
-        enabled: true,
+        success: true,
+        data: {
+          name: path.basename(configPath),
+          path: configPath,
+          size: content.length,
+          lastModified: new Date(),
+          enabled: true,
+        }
       });
     } catch (error) {
       console.error('Remote config create error:', error);
-      res.status(500).json({ message: '创建远程配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '创建远程配置文件失败', error: error.message });
     }
   } else {
     try {
@@ -339,14 +342,17 @@ router.post('/', requirePermission('config:write'), async (req, res) => {
 
       const stats = fs.statSync(configPath);
       res.status(201).json({
-        name: path.basename(configPath),
-        path: configPath,
-        size: stats.size,
-        lastModified: stats.mtime,
-        enabled: true,
+        success: true,
+        data: {
+          name: path.basename(configPath),
+          path: configPath,
+          size: stats.size,
+          lastModified: stats.mtime,
+          enabled: true,
+        }
       });
     } catch (error) {
-      res.status(500).json({ message: '创建配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '创建配置文件失败', error: error.message });
     }
   }
 });
@@ -361,7 +367,7 @@ router.put('/:path(*)', requirePermission('config:write'), async (req, res) => {
   const { content, comment, serverId } = req.body;
 
   if (!content) {
-    return res.status(400).json({ message: '缺少内容字段' });
+    return res.status(400).json({ success: false, message: '缺少内容字段' });
   }
 
   const server = getServer(serverId);
@@ -370,20 +376,23 @@ router.put('/:path(*)', requirePermission('config:write'), async (req, res) => {
     try {
       await executeRemoteCommand(server, `cat > ${configPath} << 'EOF'\n${content}\nEOF`);
       res.json({
-        name: path.basename(configPath),
-        path: configPath,
-        size: content.length,
-        lastModified: new Date(),
-        enabled: true,
+        success: true,
+        data: {
+          name: path.basename(configPath),
+          path: configPath,
+          size: content.length,
+          lastModified: new Date(),
+          enabled: true,
+        }
       });
     } catch (error) {
       console.error('Remote config update error:', error);
-      res.status(500).json({ message: '更新远程配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '更新远程配置文件失败', error: error.message });
     }
   } else {
     try {
       if (!fs.existsSync(configPath)) {
-        return res.status(404).json({ message: '配置文件不存在' });
+        return res.status(404).json({ success: false, message: '配置文件不存在' });
       }
 
       const oldContent = fs.readFileSync(configPath, 'utf-8');
@@ -392,14 +401,17 @@ router.put('/:path(*)', requirePermission('config:write'), async (req, res) => {
 
       const stats = fs.statSync(configPath);
       res.json({
-        name: path.basename(configPath),
-        path: configPath,
-        size: stats.size,
-        lastModified: stats.mtime,
-        enabled: true,
+        success: true,
+        data: {
+          name: path.basename(configPath),
+          path: configPath,
+          size: stats.size,
+          lastModified: stats.mtime,
+          enabled: true,
+        }
       });
     } catch (error) {
-      res.status(500).json({ message: '更新配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '更新配置文件失败', error: error.message });
     }
   }
 });
@@ -417,10 +429,10 @@ router.delete('/:path(*)', requirePermission('config:delete'), async (req, res) 
   if (server) {
     try {
       await executeRemoteCommand(server, `rm -f ${configPath}`);
-      res.json({ message: '删除成功' });
+      res.json({ success: true, data: { message: '删除成功' } });
     } catch (error) {
       console.error('Remote config delete error:', error);
-      res.status(500).json({ message: '删除远程配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '删除远程配置文件失败', error: error.message });
     }
   } else {
     console.log('Delete config:', configPath);
@@ -428,7 +440,7 @@ router.delete('/:path(*)', requirePermission('config:delete'), async (req, res) 
     try {
       if (!fs.existsSync(configPath)) {
         console.log('Config file not found:', configPath);
-        return res.status(404).json({ message: '配置文件不存在' });
+        return res.status(404).json({ success: false, message: '配置文件不存在' });
       }
 
       const content = fs.readFileSync(configPath, 'utf-8');
@@ -436,10 +448,10 @@ router.delete('/:path(*)', requirePermission('config:delete'), async (req, res) 
       recordHistory(configPath, 'delete', req.user.username, content, '删除配置文件');
 
       console.log('Config deleted successfully:', configPath);
-      res.json({ message: '删除成功' });
+      res.json({ success: true, data: { message: '删除成功' } });
     } catch (error) {
       console.error('Error deleting config:', error);
-      res.status(500).json({ message: '删除配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '删除配置文件失败', error: error.message });
     }
   }
 });
@@ -448,7 +460,7 @@ router.post('/validate', requirePermission('config:write'), async (req, res) => 
   const { content, serverId } = req.body;
 
   if (!content) {
-    return res.status(400).json({ message: '缺少内容字段' });
+    return res.status(400).json({ success: false, message: '缺少内容字段' });
   }
 
   const server = getServer(serverId);
@@ -476,10 +488,10 @@ http {
         const combinedOutput = output + error;
         
         if (combinedOutput.includes('successful') || combinedOutput.includes('syntax is ok')) {
-          return res.json({ valid: true });
+          return res.json({ success: true, data: { valid: true } });
         }
 
-        res.json({ valid: false, error: combinedOutput || '配置验证失败' });
+        res.json({ success: true, data: { valid: false, error: combinedOutput || '配置验证失败' } });
       } catch (error) {
         try {
           await executeRemoteCommand(server, `rm -f ${tempIncludePath} ${tempConfigPath}`);
@@ -490,7 +502,7 @@ http {
       }
     } catch (error) {
       console.error('Remote config validate error:', error);
-      res.status(500).json({ message: '验证失败', error: error.message });
+      res.status(500).json({ success: false, message: '验证失败', error: error.message });
     }
   } else {
     const configPath = getConfigPath();
@@ -514,14 +526,14 @@ http {
         const output = stdout + stderr;
         
         if (error) {
-          return res.json({ valid: false, error: output });
+          return res.json({ success: true, data: { valid: false, error: output } });
         }
 
         if (output.includes('successful') || output.includes('syntax is ok')) {
-          return res.json({ valid: true });
+          return res.json({ success: true, data: { valid: true } });
         }
 
-        res.json({ valid: false, error: output || '配置验证失败' });
+        res.json({ success: true, data: { valid: false, error: output || '配置验证失败' } });
       });
     } catch (error) {
       if (fs.existsSync(tempIncludePath)) {
@@ -530,7 +542,7 @@ http {
       if (fs.existsSync(tempConfigPath)) {
         fs.unlinkSync(tempConfigPath);
       }
-      res.status(500).json({ message: '验证失败', error: error.message });
+      res.status(500).json({ success: false, message: '验证失败', error: error.message });
     }
   }
 });
@@ -551,6 +563,7 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
       if (error && !output.includes('successful') && !output.includes('syntax is ok')) {
         console.error('Nginx configuration test failed:', error);
         return res.status(500).json({ 
+          success: false,
           message: '配置验证失败，无法应用', 
           error: error || output 
         });
@@ -561,7 +574,7 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
       try {
         await executeRemoteCommand(server, 'nginx -s reload');
         console.log('Nginx reloaded successfully on remote server');
-        res.json({ message: '配置应用成功' });
+        res.json({ success: true, data: { message: '配置应用成功' } });
       } catch (reloadError) {
         console.error('Failed to reload nginx on remote server:', reloadError);
         
@@ -579,11 +592,12 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
               console.log('Step 4: Nginx is not running on remote server, attempting to start...');
               await executeRemoteCommand(server, 'nginx');
               console.log('Nginx started successfully on remote server');
-              res.json({ message: 'nginx启动成功' });
+              res.json({ success: true, data: { message: 'nginx启动成功' } });
             } else {
               console.log('Step 4: Nginx is running on remote server but reload failed');
               console.log('Running PIDs:', pgrepOutput.trim());
               return res.status(500).json({ 
+                success: false,
                 message: 'nginx重载失败，请检查日志', 
                 error: reloadError.message || 'nginx正在运行但重载失败' 
               });
@@ -592,10 +606,11 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
             console.log('Step 4: Nginx is not running on remote server, attempting to start...');
             await executeRemoteCommand(server, 'nginx');
             console.log('Nginx started successfully on remote server');
-            res.json({ message: 'nginx启动成功' });
+            res.json({ success: true, data: { message: 'nginx启动成功' } });
           }
         } else {
           return res.status(500).json({ 
+            success: false,
             message: '应用配置失败', 
             error: reloadError.message || '未知错误' 
           });
@@ -603,7 +618,7 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
       }
     } catch (error) {
       console.error('Error applying config on remote server:', error);
-      res.status(500).json({ message: '应用配置失败', error: error.message });
+      res.status(500).json({ success: false, message: '应用配置失败', error: error.message });
     }
   } else {
     try {
@@ -616,6 +631,7 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
         if (testError) {
           console.error('Nginx configuration test failed:', testStderr);
           return res.status(500).json({ 
+            success: false,
             message: '配置验证失败，无法应用', 
             error: testStderr || testError.message 
           });
@@ -638,17 +654,19 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
                     if (startError) {
                       console.error('Failed to start nginx on host:', startStderr);
                       return res.status(500).json({ 
+                        success: false,
                         message: 'nginx启动失败', 
                         error: startStderr || startError.message 
                       });
                     }
                     console.log('Nginx started successfully on host');
-                    res.json({ message: 'nginx启动成功' });
+                    res.json({ success: true, data: { message: 'nginx启动成功' } });
                   });
                 } else {
                   console.log('Step 4: Nginx is running on host but reload failed');
                   console.log('Running PIDs:', pgrepStdout.trim());
                   return res.status(500).json({ 
+                    success: false,
                     message: 'nginx重载失败，请检查日志', 
                     error: stderr || error.message || 'nginx正在运行但重载失败' 
                   });
@@ -656,6 +674,7 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
               });
             } else {
               return res.status(500).json({ 
+                success: false,
                 message: '应用配置失败', 
                 error: stderr || error.message || '未知错误' 
               });
@@ -663,12 +682,12 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
           }
 
           console.log('Nginx reloaded successfully on host');
-          res.json({ message: '配置应用成功' });
+          res.json({ success: true, data: { message: '配置应用成功' } });
         });
       });
     } catch (error) {
       console.error('Error applying config:', error);
-      res.status(500).json({ message: '应用配置失败', error: error.message });
+      res.status(500).json({ success: false, message: '应用配置失败', error: error.message });
     }
   }
 });
@@ -688,7 +707,7 @@ router.post('/:path(*)/disable', requirePermission('config:write'), async (req, 
       console.log('Disabling remote config:', configPath);
 
       if (!configPath.endsWith('.conf') && !configPath.endsWith('.stream')) {
-        return res.status(400).json({ message: '只能禁用 .conf 或 .stream 文件' });
+        return res.status(400).json({ success: false, message: '只能禁用 .conf 或 .stream 文件' });
       }
 
       const disabledPath = configPath + '.disabled';
@@ -697,15 +716,18 @@ router.post('/:path(*)/disable', requirePermission('config:write'), async (req, 
       
       console.log('Remote config disabled successfully:', disabledPath);
       res.json({
-        name: path.basename(disabledPath),
-        path: disabledPath,
-        size: 0,
-        lastModified: new Date(),
-        enabled: false,
+        success: true,
+        data: {
+          name: path.basename(disabledPath),
+          path: disabledPath,
+          size: 0,
+          lastModified: new Date(),
+          enabled: false,
+        }
       });
     } catch (error) {
       console.error('Error disabling remote config:', error);
-      res.status(500).json({ message: '禁用远程配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '禁用远程配置文件失败', error: error.message });
     }
   } else {
     console.log('=== Disable route called ===');
@@ -717,18 +739,18 @@ router.post('/:path(*)/disable', requirePermission('config:write'), async (req, 
     try {
       if (!fs.existsSync(configPath)) {
         console.log('Config file not found:', configPath);
-        return res.status(404).json({ message: '配置文件不存在' });
+        return res.status(404).json({ success: false, message: '配置文件不存在' });
       }
 
       if (!configPath.endsWith('.conf') && !configPath.endsWith('.stream')) {
         console.log('Invalid file extension:', configPath);
-        return res.status(400).json({ message: '只能禁用 .conf 或 .stream 文件' });
+        return res.status(400).json({ success: false, message: '只能禁用 .conf 或 .stream 文件' });
       }
 
       const disabledPath = configPath + '.disabled';
       if (fs.existsSync(disabledPath)) {
         console.log('Config already disabled:', disabledPath);
-        return res.status(400).json({ message: '配置文件已被禁用' });
+        return res.status(400).json({ success: false, message: '配置文件已被禁用' });
       }
 
       const content = fs.readFileSync(configPath, 'utf-8');
@@ -738,15 +760,18 @@ router.post('/:path(*)/disable', requirePermission('config:write'), async (req, 
       const stats = fs.statSync(disabledPath);
       console.log('Config disabled successfully:', disabledPath);
       res.json({
-        name: path.basename(disabledPath),
-        path: disabledPath,
-        size: stats.size,
-        lastModified: stats.mtime,
-        enabled: false,
+        success: true,
+        data: {
+          name: path.basename(disabledPath),
+          path: disabledPath,
+          size: stats.size,
+          lastModified: stats.mtime,
+          enabled: false,
+        }
       });
     } catch (error) {
       console.error('Error disabling config:', error);
-      res.status(500).json({ message: '禁用配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '禁用配置文件失败', error: error.message });
     }
   }
 });
@@ -766,7 +791,7 @@ router.post('/:path(*)/enable', requirePermission('config:write'), async (req, r
       console.log('Enabling remote config:', configPath);
 
       if (!configPath.endsWith('.conf.disabled') && !configPath.endsWith('.stream.disabled')) {
-        return res.status(400).json({ message: '只能启用 .conf.disabled 或 .stream.disabled 文件' });
+        return res.status(400).json({ success: false, message: '只能启用 .conf.disabled 或 .stream.disabled 文件' });
       }
 
       const enabledPath = configPath.replace('.disabled', '');
@@ -775,15 +800,18 @@ router.post('/:path(*)/enable', requirePermission('config:write'), async (req, r
       
       console.log('Remote config enabled successfully:', enabledPath);
       res.json({
-        name: path.basename(enabledPath),
-        path: enabledPath,
-        size: 0,
-        lastModified: new Date(),
-        enabled: true,
+        success: true,
+        data: {
+          name: path.basename(enabledPath),
+          path: enabledPath,
+          size: 0,
+          lastModified: new Date(),
+          enabled: true,
+        }
       });
     } catch (error) {
       console.error('Error enabling remote config:', error);
-      res.status(500).json({ message: '启用远程配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '启用远程配置文件失败', error: error.message });
     }
   } else {
     console.log('Enable config:', configPath);
@@ -791,18 +819,18 @@ router.post('/:path(*)/enable', requirePermission('config:write'), async (req, r
     try {
       if (!fs.existsSync(configPath)) {
         console.log('Config file not found:', configPath);
-        return res.status(404).json({ message: '配置文件不存在' });
+        return res.status(404).json({ success: false, message: '配置文件不存在' });
       }
 
       if (!configPath.endsWith('.conf.disabled') && !configPath.endsWith('.stream.disabled')) {
         console.log('Invalid file extension:', configPath);
-        return res.status(400).json({ message: '只能启用 .conf.disabled 或 .stream.disabled 文件' });
+        return res.status(400).json({ success: false, message: '只能启用 .conf.disabled 或 .stream.disabled 文件' });
       }
 
       const enabledPath = configPath.replace('.disabled', '');
       if (fs.existsSync(enabledPath)) {
         console.log('Enabled config already exists:', enabledPath);
-        return res.status(400).json({ message: '已存在同名的启用配置文件' });
+        return res.status(400).json({ success: false, message: '已存在同名的启用配置文件' });
       }
 
       const content = fs.readFileSync(configPath, 'utf-8');
@@ -812,15 +840,18 @@ router.post('/:path(*)/enable', requirePermission('config:write'), async (req, r
       const stats = fs.statSync(enabledPath);
       console.log('Config enabled successfully:', enabledPath);
       res.json({
-        name: path.basename(enabledPath),
-        path: enabledPath,
-        size: stats.size,
-        lastModified: stats.mtime,
-        enabled: true,
+        success: true,
+        data: {
+          name: path.basename(enabledPath),
+          path: enabledPath,
+          size: stats.size,
+          lastModified: stats.mtime,
+          enabled: true,
+        }
       });
     } catch (error) {
       console.error('Error enabling config:', error);
-      res.status(500).json({ message: '启用配置文件失败', error: error.message });
+      res.status(500).json({ success: false, message: '启用配置文件失败', error: error.message });
     }
   }
 });

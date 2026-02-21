@@ -13,6 +13,9 @@ const createRateLimiter = (windowMs = 15 * 60 * 1000, max = 100) => {
     skip: (req) => {
       return req.path === '/health';
     },
+    validate: {
+      xForwardedForHeader: false,
+    },
   });
 };
 

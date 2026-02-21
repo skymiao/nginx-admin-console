@@ -267,10 +267,10 @@ const parseUpstreams = async (server = null) => {
 router.get('/', requirePermission('config:read'), (req, res) => {
   try {
     const upstreams = parseUpstreams();
-    res.json(upstreams);
+    res.json({ success: true, data: upstreams });
   } catch (error) {
     console.error('Error getting upstreams:', error);
-    res.status(500).json({ message: '获取 upstream 列表失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取 upstream 列表失败', error: error.message });
   }
 });
 
@@ -300,10 +300,10 @@ router.get('/stats', requirePermission('config:read'), async (req, res) => {
       })),
     }));
 
-    res.json(stats);
+    res.json({ success: true, data: stats });
   } catch (error) {
     console.error('Error getting upstream stats:', error);
-    res.status(500).json({ message: '获取 upstream 统计失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取 upstream 统计失败', error: error.message });
   }
 });
 

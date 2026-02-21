@@ -288,7 +288,7 @@ const Upstreams = () => {
     try {
       setServersLoading(true);
       const response = await serverAPI.list();
-      const validServers = (response.data || []).filter(server => {
+      const validServers = (response.data?.data || []).filter(server => {
         if (!server || !server.id || !server.name || server.name.trim() === '') {
           return false;
         }
@@ -310,7 +310,7 @@ const Upstreams = () => {
     try {
       setLoading(true);
       const response = await upstreamAPI.getStats(selectedServer);
-      setUpstreams(response.data || []);
+      setUpstreams(response.data?.data || []);
     } catch (error) {
       message.error('加载 upstream 列表失败');
       console.error('Failed to load upstreams:', error);

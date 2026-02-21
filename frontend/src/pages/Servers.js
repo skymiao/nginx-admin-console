@@ -47,7 +47,7 @@ const Servers = () => {
     try {
       setLoading(true);
       const response = await serverAPI.list();
-      setServers(response.data || []);
+      setServers(response.data?.data || []);
     } catch (error) {
       message.error('加载服务器列表失败');
       console.error('Failed to load servers:', error);

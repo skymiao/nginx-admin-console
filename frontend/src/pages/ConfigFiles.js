@@ -93,7 +93,7 @@ const ConfigFiles = () => {
     try {
       setServersLoading(true);
       const response = await serverAPI.list();
-      const validServers = (response.data || []).filter(server => {
+      const validServers = (response.data?.data || []).filter(server => {
         if (!server || !server.id || !server.name || server.name.trim() === '') {
           return false;
         }
@@ -115,7 +115,7 @@ const ConfigFiles = () => {
     try {
       setLoading(true);
       const response = await configAPI.list(selectedServer);
-      setConfigs(response.data || []);
+      setConfigs(response.data?.data || []);
     } catch (error) {
       message.error('加载配置文件失败');
       console.error('Failed to load configs:', error);

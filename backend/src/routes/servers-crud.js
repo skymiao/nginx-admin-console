@@ -9,10 +9,10 @@ router.use(authMiddleware);
 router.get('/', requirePermission('server:read'), (req, res) => {
   try {
     const servers = db.prepare('SELECT * FROM servers ORDER BY is_default DESC, created_at DESC').all();
-    res.json(servers);
+    res.json({ success: true, data: servers });
   } catch (error) {
     console.error('Failed to fetch servers:', error);
-    res.status(500).json({ message: '获取服务器列表失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取服务器列表失败', error: error.message });
   }
 });
 
@@ -20,12 +20,12 @@ router.get('/:id', requirePermission('server:read'), (req, res) => {
   try {
     const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(req.params.id);
     if (!server) {
-      return res.status(404).json({ message: '服务器不存在' });
+      return res.status(404).json({ success: false, message: '服务器不存在' });
     }
-    res.json(server);
+    res.json({ success: true, data: server });
   } catch (error) {
     console.error('Failed to fetch server:', error);
-    res.status(500).json({ message: '获取服务器信息失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取服务器信息失败', error: error.message });
   }
 });
 
@@ -34,11 +34,11 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
     const { name, host, port, username, password, privateKey, description, nginxConfigPath, nginxLogPath, nginxStatusUrl, useSudo } = req.body;
 
     if (!name || !host || !username) {
-      return res.status(400).json({ message: '缺少必要参数' });
+      return res.status(400).json({ success: false, message: '缺少必要参数' });
     }
 
     if (!password && !privateKey) {
-      return res.status(400).json({ message: '密码和私钥至少提供一个' });
+      return res.status(400).json({ success: false, message: '密码和私钥至少提供一个' });
     }
 
     const insertSQL = `
@@ -61,12 +61,13 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
     );
 
     res.status(201).json({ 
-      id: result.lastInsertRowid,
+      success: true,
+      data: { id: result.lastInsertRowid },
       message: '创建成功' 
     });
   } catch (error) {
     console.error('Failed to create server:', error);
-    res.status(500).json({ message: '创建服务器失败', error: error.message });
+    res.status(500).json({ success: false, message: '创建服务器失败', error: error.message });
   }
 });
 
@@ -76,7 +77,7 @@ router.put('/:id', requirePermission('server:manage'), (req, res) => {
 
     const existingServer = db.prepare('SELECT * FROM servers WHERE id = ?').get(req.params.id);
     if (!existingServer) {
-      return res.status(404).json({ message: '服务器不存在' });
+      return res.status(404).json({ success: false, message: '服务器不存在' });
     }
 
     const updateSQL = `
@@ -100,10 +101,10 @@ router.put('/:id', requirePermission('server:manage'), (req, res) => {
       req.params.id
     );
 
-    res.json({ message: '更新成功' });
+    res.json({ success: true, message: '更新成功' });
   } catch (error) {
     console.error('Failed to update server:', error);
-    res.status(500).json({ message: '更新服务器失败', error: error.message });
+    res.status(500).json({ success: false, message: '更新服务器失败', error: error.message });
   }
 });
 
@@ -111,18 +112,18 @@ router.delete('/:id', requirePermission('server:manage'), (req, res) => {
   try {
     const existingServer = db.prepare('SELECT * FROM servers WHERE id = ?').get(req.params.id);
     if (!existingServer) {
-      return res.status(404).json({ message: '服务器不存在' });
+      return res.status(404).json({ success: false, message: '服务器不存在' });
     }
 
     if (existingServer.is_default) {
-      return res.status(403).json({ message: '默认服务器不能删除' });
+      return res.status(403).json({ success: false, message: '默认服务器不能删除' });
     }
 
     db.prepare('DELETE FROM servers WHERE id = ?').run(req.params.id);
-    res.json({ message: '删除成功' });
+    res.json({ success: true, message: '删除成功' });
   } catch (error) {
     console.error('Failed to delete server:', error);
-    res.status(500).json({ message: '删除服务器失败', error: error.message });
+    res.status(500).json({ success: false, message: '删除服务器失败', error: error.message });
   }
 });
 

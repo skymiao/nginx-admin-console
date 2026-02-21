@@ -11,7 +11,7 @@ router.get('/', requirePermission('role:manage'), (req, res) => {
   roles.forEach(role => {
     role.permissions = JSON.parse(role.permissions);
   });
-  res.json(roles);
+  res.json({ success: true, data: roles });
 });
 
 router.get('/permissions', requirePermission('role:manage'), (req, res) => {
@@ -33,32 +33,32 @@ router.get('/permissions', requirePermission('role:manage'), (req, res) => {
     { id: 'server:manage', name: '管理服务器', category: '服务器管理' },
     { id: 'system:manage', name: '系统设置', category: '系统管理' },
   ];
-  res.json(permissions);
+  res.json({ success: true, data: permissions });
 });
 
 router.get('/:id', requirePermission('role:manage'), (req, res) => {
   const role = db.prepare('SELECT * FROM roles WHERE id = ?').get(req.params.id);
   if (!role) {
-    return res.status(404).json({ message: '角色不存在' });
+    return res.status(404).json({ success: false, message: '角色不存在' });
   }
   role.permissions = JSON.parse(role.permissions);
-  res.json(role);
+  res.json({ success: true, data: role });
 });
 
 router.post('/', requirePermission('role:manage'), (req, res) => {
   const { name, description, permissions } = req.body;
 
   if (!name || !description || !permissions) {
-    return res.status(400).json({ message: '缺少必要字段' });
+    return res.status(400).json({ success: false, message: '缺少必要字段' });
   }
 
   if (!Array.isArray(permissions)) {
-    return res.status(400).json({ message: '权限必须是数组' });
+    return res.status(400).json({ success: false, message: '权限必须是数组' });
   }
 
   const existingRole = db.prepare('SELECT id FROM roles WHERE name = ?').get(name);
   if (existingRole) {
-    return res.status(400).json({ message: '角色已存在' });
+    return res.status(400).json({ success: false, message: '角色已存在' });
   }
 
   const result = db.prepare(
@@ -67,7 +67,7 @@ router.post('/', requirePermission('role:manage'), (req, res) => {
 
   const role = db.prepare('SELECT * FROM roles WHERE id = ?').get(result.lastInsertRowid);
   role.permissions = JSON.parse(role.permissions);
-  res.status(201).json(role);
+  res.status(201).json({ success: true, message: '角色创建成功', data: role });
 });
 
 router.put('/:id', requirePermission('role:manage'), (req, res) => {
@@ -76,17 +76,17 @@ router.put('/:id', requirePermission('role:manage'), (req, res) => {
 
   const existingRole = db.prepare('SELECT id, name FROM roles WHERE id = ?').get(roleId);
   if (!existingRole) {
-    return res.status(404).json({ message: '角色不存在' });
+    return res.status(404).json({ success: false, message: '角色不存在' });
   }
 
   if (existingRole.name === 'admin') {
-    return res.status(403).json({ message: '不能修改管理员角色' });
+    return res.status(403).json({ success: false, message: '不能修改管理员角色' });
   }
 
   if (name && name !== existingRole.name) {
     const duplicateRole = db.prepare('SELECT id FROM roles WHERE name = ? AND id != ?').get(name, roleId);
     if (duplicateRole) {
-      return res.status(400).json({ message: '角色名已存在' });
+      return res.status(400).json({ success: false, message: '角色名已存在' });
     }
   }
 
@@ -103,14 +103,14 @@ router.put('/:id', requirePermission('role:manage'), (req, res) => {
   }
   if (permissions) {
     if (!Array.isArray(permissions)) {
-      return res.status(400).json({ message: '权限必须是数组' });
+      return res.status(400).json({ success: false, message: '权限必须是数组' });
     }
     updates.push('permissions = ?');
     values.push(JSON.stringify(permissions));
   }
 
   if (updates.length === 0) {
-    return res.status(400).json({ message: '没有要更新的字段' });
+    return res.status(400).json({ success: false, message: '没有要更新的字段' });
   }
 
   values.push(roleId);
@@ -118,7 +118,7 @@ router.put('/:id', requirePermission('role:manage'), (req, res) => {
 
   const role = db.prepare('SELECT * FROM roles WHERE id = ?').get(roleId);
   role.permissions = JSON.parse(role.permissions);
-  res.json(role);
+  res.json({ success: true, message: '角色更新成功', data: role });
 });
 
 router.delete('/:id', requirePermission('role:manage'), (req, res) => {
@@ -126,20 +126,20 @@ router.delete('/:id', requirePermission('role:manage'), (req, res) => {
 
   const role = db.prepare('SELECT name FROM roles WHERE id = ?').get(roleId);
   if (!role) {
-    return res.status(404).json({ message: '角色不存在' });
+    return res.status(404).json({ success: false, message: '角色不存在' });
   }
 
   if (role.name === 'admin') {
-    return res.status(403).json({ message: '不能删除管理员角色' });
+    return res.status(403).json({ success: false, message: '不能删除管理员角色' });
   }
 
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get(role.name);
   if (userCount.count > 0) {
-    return res.status(400).json({ message: '该角色下还有用户，无法删除' });
+    return res.status(400).json({ success: false, message: '该角色下还有用户，无法删除' });
   }
 
   db.prepare('DELETE FROM roles WHERE id = ?').run(roleId);
-  res.json({ message: '删除成功' });
+  res.json({ success: true, message: '删除成功' });
 });
 
 module.exports = router;
