@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const { initDatabase } = require('./database');
 const { createServersTable, insertDefaultServer } = require('./migrations/createServersTable');
 const { migrate: addLastLoginAt } = require('./migrations/addLastLoginAt');
@@ -11,6 +12,8 @@ const { addSudoSupport } = require('./migrations/addSudoSupport');
 const { updateRolePermissions } = require('./migrations/updateRolePermissions');
 const { updateDefaultServerStatusUrl } = require('./migrations/updateDefaultServerStatusUrl');
 const { updateRolePermissions: updateRolePermissions2 } = require('./migrations/updateRolePermissions2');
+const { errorHandler } = require('./middleware/errorHandler');
+const { apiLimiter } = require('./middleware/rateLimit');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,8 +29,45 @@ updateRolePermissions();
 updateDefaultServerStatusUrl();
 updateRolePermissions2();
 
-app.use(helmet());
-app.use(cors());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  noSniff: true,
+  xssFilter: true,
+  referrerPolicy: { policy: 'same-origin' },
+}));
+
+app.use(cors({
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  maxAge: 86400,
+}));
+
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  threshold: 1024,
+  level: 6,
+}));
+
+app.use('/api', apiLimiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -60,13 +100,10 @@ app.get('/health', (req, res) => {
 });
 
 app.use((req, res) => {
-  res.status(404).json({ message: '接口不存在' });
+  res.status(404).json({ success: false, message: '接口不存在' });
 });
 
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ message: '服务器内部错误', error: err.message });
-});
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
