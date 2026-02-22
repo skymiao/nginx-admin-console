@@ -475,6 +475,8 @@ router.post('/validate', requirePermission('config:write'), async (req, res) => 
         const hasEvents = content.includes('events');
         const hasHttp = content.includes('http');
         
+        console.log(`[Config Validate] Remote server: ${server.name}, hasEvents: ${hasEvents}, hasHttp: ${hasHttp}`);
+        
         let configToValidate;
         if (hasEvents || hasHttp) {
           configToValidate = content;
@@ -494,6 +496,7 @@ http {
         await executeRemoteCommand(server, `rm -f ${tempIncludePath} ${tempConfigPath}`);
         
         const combinedOutput = output + error;
+        console.log(`[Config Validate] Nginx test output: ${combinedOutput}`);
         
         if (combinedOutput.includes('successful') || combinedOutput.includes('syntax is ok')) {
           return res.json({ success: true, data: { valid: true } });
@@ -521,6 +524,8 @@ http {
       const hasEvents = content.includes('events');
       const hasHttp = content.includes('http');
       
+      console.log(`[Config Validate] Local server, hasEvents: ${hasEvents}, hasHttp: ${hasHttp}`);
+      
       let configToValidate;
       if (hasEvents || hasHttp) {
         configToValidate = content;
@@ -536,10 +541,15 @@ http {
       fs.writeFileSync(tempConfigPath, configToValidate, 'utf-8');
 
       exec(`nginx -t -c ${tempConfigPath} 2>&1`, (error, stdout, stderr) => {
-        fs.unlinkSync(tempIncludePath);
-        fs.unlinkSync(tempConfigPath);
+        if (fs.existsSync(tempIncludePath)) {
+          fs.unlinkSync(tempIncludePath);
+        }
+        if (fs.existsSync(tempConfigPath)) {
+          fs.unlinkSync(tempConfigPath);
+        }
 
         const output = stdout + stderr;
+        console.log(`[Config Validate] Nginx test output: ${output}`);
         
         if (error) {
           return res.json({ success: true, data: { valid: false, error: output } });
@@ -552,6 +562,7 @@ http {
         res.json({ success: true, data: { valid: false, error: output || '配置验证失败' } });
       });
     } catch (error) {
+      console.error('Local config validate error:', error);
       if (fs.existsSync(tempIncludePath)) {
         fs.unlinkSync(tempIncludePath);
       }

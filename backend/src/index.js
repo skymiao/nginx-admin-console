@@ -96,6 +96,7 @@ app.use('/api/upstreams', require('./routes/upstreams'));
 app.use('/api/servers', require('./routes/servers'));
 app.use('/api/servers', require('./routes/servers-crud'));
 app.use('/api/stats', require('./routes/stats'));
+app.use('/api', require('./routes/api-info'));
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
