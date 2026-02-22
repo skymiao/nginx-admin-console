@@ -195,10 +195,11 @@ const ConfigFiles = () => {
     try {
       setValidating(true);
       const response = await configAPI.validate(editorContent, selectedServer);
-      if (response.data.valid) {
+      const data = response.data?.data || response.data;
+      if (data.valid) {
         message.success('配置验证通过');
       } else {
-        message.error(`配置验证失败: ${response.data.error}`);
+        message.error(`配置验证失败: ${data.error}`);
       }
     } catch (error) {
       message.error('验证失败');
