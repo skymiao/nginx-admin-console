@@ -306,6 +306,7 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
   try {
     let content = '';
     let totalLines = 0;
+    let stats = { total: 0, error: 0, warn: 0, info: 0 };
 
     if (server) {
       const logPath = server.nginx_log_path || '/var/log/nginx';
@@ -316,17 +317,52 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
       const linesToRead = keyword && keyword.trim() ? Math.min(totalLines, 10000) : lines * 2;
       const { output } = await executeRemoteCommand(server, `test -f ${errorLogPath} && tail -n ${linesToRead} ${errorLogPath}`);
       content = output;
+      
+      const { output: grepOutput } = await executeRemoteCommand(server, `grep -oE '\\[(error|warn|info|debug)\\]' ${errorLogPath} 2>/dev/null | sort | uniq -c`);
+      if (grepOutput) {
+        const grepLines = grepOutput.trim().split('\n');
+        grepLines.forEach(line => {
+          const match = line.trim().match(/^(\d+)\s+\[(\w+)\]/);
+          if (match) {
+            const count = parseInt(match[1]);
+            const level = match[2].toLowerCase();
+            stats.total += count;
+            if (level === 'error') {
+              stats.error += count;
+            } else if (level === 'warn') {
+              stats.warn += count;
+            } else if (level === 'info') {
+              stats.info += count;
+            }
+          }
+        });
+      }
     } else {
       const logPath = getLogPath();
       const errorLogPath = path.join(logPath, logFile);
 
       if (!fs.existsSync(errorLogPath)) {
-        return res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0 } });
+        return res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0, stats } });
       }
 
       content = fs.readFileSync(errorLogPath, 'utf-8');
       const logLines = content.split('\n').filter(line => line.trim());
       totalLines = logLines.length;
+      
+      logLines.forEach(line => {
+        const match = line.match(/\[(error|warn|info|debug)\]/i);
+        if (match) {
+          const level = match[1].toLowerCase();
+          stats.total++;
+          if (level === 'error') {
+            stats.error++;
+          } else if (level === 'warn') {
+            stats.warn++;
+          } else if (level === 'info') {
+            stats.info++;
+          }
+        }
+      });
     }
 
     const logLines = content.split('\n').filter(line => line.trim());
@@ -347,12 +383,21 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
         logs: lastLines.join('\n'),
         total: totalLines,
         filteredTotal: filteredLogs.length,
+        stats,
         filtered: true,
       }
     });
   } catch (error) {
     console.error('Error reading error log:', error);
-    res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0 } });
+    res.json({ 
+      success: true,
+      data: {
+        logs: '', 
+        total: 0, 
+        filteredTotal: 0,
+        stats: { total: 0, error: 0, warn: 0, info: 0 }
+      }
+    });
   }
 });
 

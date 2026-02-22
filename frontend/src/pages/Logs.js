@@ -22,6 +22,7 @@ import {
   Modal,
   Form,
   Popconfirm,
+  Pagination,
 } from 'antd';
 import {
   ReloadOutlined,
@@ -169,6 +170,8 @@ const Logs = () => {
   const [addCustomColumnVisible, setAddCustomColumnVisible] = useState(false);
   const [customColumnForm] = Form.useForm();
   const [viewMode, setViewMode] = useState('columns');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const refreshIntervalRef = useRef(null);
 
   useEffect(() => {
@@ -265,6 +268,7 @@ const Logs = () => {
       return;
     }
     
+    setCurrentPage(1);
     setLoading(true);
     try {
       if (activeTab === 'access') {
@@ -294,6 +298,13 @@ const Logs = () => {
       }
     } catch (error) {
       console.error('Failed to load logs:', error);
+      if (activeTab === 'error') {
+        setErrorLogs('');
+        message.error('加载错误日志失败: ' + (error.response?.data?.message || error.message));
+      } else {
+        setAccessLogs('');
+        message.error('加载访问日志失败: ' + (error.response?.data?.message || error.message));
+      }
     } finally {
       setLoading(false);
     }
@@ -474,15 +485,18 @@ const Logs = () => {
   };
 
   const handleRefresh = () => {
+    setCurrentPage(1);
     loadLogs();
   };
 
   const handleLineCountChange = (value) => {
     setLineCount(value);
+    setCurrentPage(1);
   };
 
   const handleLogFileChange = (value) => {
     setSelectedLogFile(value);
+    setCurrentPage(1);
   };
 
   const handleSearch = (value) => {
@@ -491,6 +505,7 @@ const Logs = () => {
 
   const handleClearSearch = () => {
     setSearchKeyword('');
+    setCurrentPage(1);
   };
 
   const toggleAutoRefresh = () => {
@@ -685,70 +700,103 @@ const Logs = () => {
     const lines = accessLogs.split('\n').filter(line => line.trim()).reverse();
     const availableColumns = getAvailableColumns();
     
-    if (viewMode === 'raw') {
-      return lines.map((line, index) => {
-        const isExpanded = expandedLogs[`access-${index}`];
-        const isLongLine = line.length > 300;
-
-        return (
-          <div key={index} className="log-entry" style={{
-            padding: '12px 16px',
-            borderBottom: '1px solid #F1F5F9',
-            fontFamily: 'monospace',
-            fontSize: 13,
-            transition: 'all 0.2s ease',
-          }}>
-            <div style={{
-              display: 'flex',
-              gap: 16,
-              alignItems: 'center',
-              flexWrap: 'nowrap',
-              overflow: 'hidden',
-            }}>
-              <span style={{ 
-                color: '#1E293B', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis', 
-                whiteSpace: 'nowrap', 
-                fontWeight: 500, 
-                flexShrink: 1 
-              }}>
-                {line}
-              </span>
-              {isLongLine && (
-                <Button
-                  type="link"
-                  size="small"
-                  onClick={() => setExpandedLogs(prev => ({ ...prev, [`access-${index}`]: !isExpanded }))}
-                  style={{ padding: 0, height: 'auto', flexShrink: 0 }}
-                >
-                  {isExpanded ? '收起' : '查看'}
-                </Button>
-              )}
-            </div>
-            {isLongLine && isExpanded && (
-              <div style={{
-                marginTop: 8,
-                padding: '12px',
-                backgroundColor: '#F8FAFC',
-                borderRadius: 4,
-                wordBreak: 'break-all',
-                whiteSpace: 'pre-wrap',
-                fontSize: 13,
-              }}>
-                {line}
-              </div>
-            )}
-          </div>
-        );
-      });
+    if (lines.length === 0) {
+      return <Empty description="暂无访问日志" />;
     }
     
-    return lines.map((line, index) => {
-      const parsed = parseAccessLog(line);
-      const statusColor = parsed.status >= 500 ? 'error' : parsed.status >= 400 ? 'warning' : 'success';
-      const isExpanded = expandedLogs[`access-${index}`];
-      const isLongLine = line.length > 300;
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const displayLines = lines.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(lines.length / pageSize);
+    
+    if (viewMode === 'raw') {
+      return (
+        <>
+          {displayLines.map((line, index) => {
+            const actualIndex = startIndex + index;
+            const isExpanded = expandedLogs[`access-${actualIndex}`];
+            const isLongLine = line.length > 300;
+
+            return (
+              <div key={actualIndex} className="log-entry" style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #F1F5F9',
+                fontFamily: 'monospace',
+                fontSize: 13,
+                transition: 'all 0.2s ease',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  gap: 16,
+                  alignItems: 'center',
+                  flexWrap: 'nowrap',
+                  overflow: 'hidden',
+                }}>
+                  <span style={{ 
+                    color: '#1E293B', 
+                    overflow: 'hidden', 
+                    textOverflow: 'ellipsis', 
+                    whiteSpace: 'nowrap', 
+                    fontWeight: 500, 
+                    flexShrink: 1 
+                  }}>
+                    {line}
+                  </span>
+                  {isLongLine && (
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => setExpandedLogs(prev => ({ ...prev, [`access-${actualIndex}`]: !isExpanded }))}
+                      style={{ padding: 0, height: 'auto', flexShrink: 0 }}
+                    >
+                      {isExpanded ? '收起' : '查看'}
+                    </Button>
+                  )}
+                </div>
+                {isLongLine && isExpanded && (
+                  <div style={{
+                    marginTop: 8,
+                    padding: '12px',
+                    backgroundColor: '#F8FAFC',
+                    borderRadius: 4,
+                    wordBreak: 'break-all',
+                    whiteSpace: 'pre-wrap',
+                    fontSize: 13,
+                  }}>
+                    {line}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {lines.length > pageSize && (
+            <div style={{ padding: '16px', textAlign: 'center', borderTop: '1px solid #F1F5F9' }}>
+              <Pagination
+                current={currentPage}
+                total={lines.length}
+                pageSize={pageSize}
+                onChange={(page, size) => {
+                  setCurrentPage(page);
+                  setPageSize(size);
+                }}
+                showSizeChanger
+                showTotal={(total) => `共 ${total} 条`}
+                pageSizeOptions={['10', '20', '50', '100', '200']}
+              />
+            </div>
+          )}
+        </>
+      );
+    }
+    
+    return (
+      <>
+        {displayLines.map((line, index) => {
+          const actualIndex = startIndex + index;
+          const parsed = parseAccessLog(line);
+          const statusColor = parsed.status >= 500 ? 'error' : parsed.status >= 400 ? 'warning' : 'success';
+          const isExpanded = expandedLogs[`access-${actualIndex}`];
+          const isLongLine = line.length > 300;
 
       const renderColumn = (columnKey) => {
         const columnDef = COLUMN_DEFINITIONS[columnKey] || customColumns.find(c => c.key === columnKey);
@@ -833,7 +881,7 @@ const Logs = () => {
       };
 
       return (
-        <div key={index} className="log-entry" style={{
+        <div key={actualIndex} className="log-entry" style={{
           padding: '12px 16px',
           borderBottom: '1px solid #F1F5F9',
           fontFamily: 'monospace',
@@ -852,7 +900,7 @@ const Logs = () => {
               <Button
                 type="link"
                 size="small"
-                onClick={() => setExpandedLogs(prev => ({ ...prev, [`access-${index}`]: !isExpanded }))}
+                onClick={() => setExpandedLogs(prev => ({ ...prev, [`access-${actualIndex}`]: !isExpanded }))}
                 style={{ padding: 0, height: 'auto', flexShrink: 0 }}
               >
                 {isExpanded ? '收起' : '查看'}
@@ -874,7 +922,25 @@ const Logs = () => {
           )}
         </div>
       );
-    });
+    })}
+    {lines.length > pageSize && (
+      <div style={{ padding: '16px', textAlign: 'center', borderTop: '1px solid #F1F5F9' }}>
+        <Pagination
+          current={currentPage}
+          total={lines.length}
+          pageSize={pageSize}
+          onChange={(page, size) => {
+            setCurrentPage(page);
+            setPageSize(size);
+          }}
+          showSizeChanger
+          showTotal={(total) => `共 ${total} 条`}
+          pageSizeOptions={['10', '20', '50', '100', '200']}
+        />
+      </div>
+    )}
+  </>
+  );
   };
 
   const renderErrorLogs = () => {
@@ -883,85 +949,115 @@ const Logs = () => {
     }
 
     const lines = errorLogs.split('\n').filter(line => line.trim()).reverse();
-    return lines.map((line, index) => {
-      const timeMatch = line.match(/\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}/);
-      const levelMatch = line.match(/\[(error|warn|info|debug)\]/i);
+    
+    if (lines.length === 0) {
+      return <Empty description="暂无错误日志" />;
+    }
+    
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const displayLines = lines.slice(startIndex, endIndex);
+    
+    return (
+      <>
+        {displayLines.map((line, index) => {
+          const actualIndex = startIndex + index;
+          const timeMatch = line.match(/\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}/);
+          const levelMatch = line.match(/\[(error|warn|info|debug)\]/i);
 
-      let levelColor = 'default';
-      let levelIcon = <InfoOutlined />;
-      if (levelMatch) {
-        const level = levelMatch[1].toLowerCase();
-        if (level === 'error') {
-          levelColor = 'error';
-          levelIcon = <CloseCircleOutlined />;
-        } else if (level === 'warn') {
-          levelColor = 'warning';
-          levelIcon = <WarningOutlined />;
-        } else if (level === 'info') {
-          levelColor = 'processing';
-          levelIcon = <InfoOutlined />;
-        }
-      }
+          let levelColor = 'default';
+          let levelIcon = <InfoOutlined />;
+          if (levelMatch) {
+            const level = levelMatch[1].toLowerCase();
+            if (level === 'error') {
+              levelColor = 'error';
+              levelIcon = <CloseCircleOutlined />;
+            } else if (level === 'warn') {
+              levelColor = 'warning';
+              levelIcon = <WarningOutlined />;
+            } else if (level === 'info') {
+              levelColor = 'processing';
+              levelIcon = <InfoOutlined />;
+            }
+          }
 
-      const isExpanded = expandedLogs[`error-${index}`];
-      const isLongLine = line.length > 300;
+          const isExpanded = expandedLogs[`error-${actualIndex}`];
+          const isLongLine = line.length > 300;
 
-      return (
-        <div key={index} className="log-entry" style={{
-          padding: '12px 16px',
-          borderBottom: '1px solid #F1F5F9',
-          fontFamily: 'monospace',
-          fontSize: 13,
-          transition: 'all 0.2s ease',
-        }}>
-          <div style={{
-            display: 'flex',
-            gap: 16,
-            alignItems: 'center',
-            flexWrap: 'nowrap',
-            overflow: 'hidden',
-          }}>
-            <span style={{ color: '#94A3B8', minWidth: 160, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-              <ClockCircleOutlined style={{ fontSize: 12 }} />
-              {timeMatch ? timeMatch[0] : '-'}
-            </span>
-            {levelMatch && (
-              <Badge 
-                status={levelColor} 
-                text={levelMatch[1].toUpperCase()}
-                style={{ minWidth: 80, flexShrink: 0 }}
-              />
-            )}
-            <span style={{ color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, flexShrink: 1 }}>
-              {line}
-            </span>
-            {isLongLine && (
-              <Button
-                type="link"
-                size="small"
-                onClick={() => setExpandedLogs(prev => ({ ...prev, [`error-${index}`]: !isExpanded }))}
-                style={{ padding: 0, height: 'auto', flexShrink: 0 }}
-              >
-                {isExpanded ? '收起' : '查看'}
-              </Button>
-            )}
-          </div>
-          {isLongLine && isExpanded && (
-            <div style={{
-              marginTop: 8,
-              padding: '12px',
-              backgroundColor: '#F8FAFC',
-              borderRadius: 4,
-              wordBreak: 'break-all',
-              whiteSpace: 'pre-wrap',
+          return (
+            <div key={actualIndex} className="log-entry" style={{
+              padding: '12px 16px',
+              borderBottom: '1px solid #F1F5F9',
+              fontFamily: 'monospace',
               fontSize: 13,
+              transition: 'all 0.2s ease',
             }}>
-              {line}
+              <div style={{
+                display: 'flex',
+                gap: 16,
+                alignItems: 'center',
+                flexWrap: 'nowrap',
+                overflow: 'hidden',
+              }}>
+                <span style={{ color: '#94A3B8', minWidth: 160, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <ClockCircleOutlined style={{ fontSize: 12 }} />
+                  {timeMatch ? timeMatch[0] : '-'}
+                </span>
+                {levelMatch && (
+                  <Badge 
+                    status={levelColor} 
+                    text={levelMatch[1].toUpperCase()}
+                    style={{ minWidth: 80, flexShrink: 0 }}
+                  />
+                )}
+                <span style={{ color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, flexShrink: 1 }}>
+                  {line}
+                </span>
+                {isLongLine && (
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() => setExpandedLogs(prev => ({ ...prev, [`error-${actualIndex}`]: !isExpanded }))}
+                    style={{ padding: 0, height: 'auto', flexShrink: 0 }}
+                  >
+                    {isExpanded ? '收起' : '查看'}
+                  </Button>
+                )}
+              </div>
+              {isLongLine && isExpanded && (
+                <div style={{
+                  marginTop: 8,
+                  padding: '12px',
+                  backgroundColor: '#F8FAFC',
+                  borderRadius: 4,
+                  wordBreak: 'break-all',
+                  whiteSpace: 'pre-wrap',
+                  fontSize: 13,
+                }}>
+                  {line}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      );
-    });
+          );
+        })}
+        {lines.length > pageSize && (
+          <div style={{ padding: '16px', textAlign: 'center', borderTop: '1px solid #F1F5F9' }}>
+            <Pagination
+              current={currentPage}
+              total={lines.length}
+              pageSize={pageSize}
+              onChange={(page, size) => {
+                setCurrentPage(page);
+                setPageSize(size);
+              }}
+              showSizeChanger
+              showTotal={(total) => `共 ${total} 条`}
+              pageSizeOptions={['10', '20', '50', '100', '200']}
+            />
+          </div>
+        )}
+      </>
+    );
   };
 
   return (
@@ -1139,7 +1235,10 @@ const Logs = () => {
 
               <Radio.Group
                 value={viewMode}
-                onChange={(e) => setViewMode(e.target.value)}
+                onChange={(e) => {
+                  setViewMode(e.target.value);
+                  setCurrentPage(1);
+                }}
                 size="small"
                 buttonStyle="solid"
               >
@@ -1197,7 +1296,10 @@ const Logs = () => {
           </div>
         }
       >
-        <Tabs activeKey={activeTab} onChange={setActiveTab}>
+        <Tabs activeKey={activeTab} onChange={(key) => {
+          setActiveTab(key);
+          setCurrentPage(1);
+        }}>
           <Tabs.TabPane tab="访问日志" key="access">
             <Spin spinning={loading}>
               {renderAccessLogs()}
