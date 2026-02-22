@@ -74,10 +74,25 @@ const initDatabase = () => {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS nginx_stats_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        server_id TEXT NOT NULL,
+        active_connections INTEGER DEFAULT 0,
+        accepts INTEGER DEFAULT 0,
+        handled INTEGER DEFAULT 0,
+        requests INTEGER DEFAULT 0,
+        reading INTEGER DEFAULT 0,
+        writing INTEGER DEFAULT 0,
+        waiting INTEGER DEFAULT 0,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_config_history_path ON config_history(config_path);
       CREATE INDEX IF NOT EXISTS idx_config_history_created ON config_history(created_at);
+      CREATE INDEX IF NOT EXISTS idx_nginx_stats_history_server ON nginx_stats_history(server_id);
+      CREATE INDEX IF NOT EXISTS idx_nginx_stats_history_timestamp ON nginx_stats_history(timestamp);
     `);
     console.log('Database tables created successfully');
 
