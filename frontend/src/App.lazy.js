@@ -19,6 +19,7 @@ const Upstreams = lazy(() => import('./pages/Upstreams'));
 const Servers = lazy(() => import('./pages/Servers'));
 const Stats = lazy(() => import('./pages/Stats'));
 const Profile = lazy(() => import('./pages/Profile'));
+const Health = lazy(() => import('./pages/Health'));
 
 const LoadingFallback = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -48,30 +49,31 @@ function App() {
       <ConfigProvider theme={isDarkMode ? darkTheme : lightTheme}>
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Layout isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="configs" element={<ConfigFiles />} />
-              <Route path="logs" element={<Logs />} />
-              <Route path="log-statistics" element={<LogStatistics />} />
-              <Route path="history" element={<History />} />
-              <Route path="users" element={<Users />} />
-              <Route path="roles" element={<Roles />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="upstreams" element={<Upstreams />} />
-              <Route path="servers" element={<Servers />} />
-              <Route path="stats" element={<Stats />} />
-              <Route path="profile" element={<Profile />} />
-            </Route>
-          </Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/health" element={<Health />} />
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Layout isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="configs" element={<ConfigFiles />} />
+            <Route path="logs" element={<Logs />} />
+            <Route path="log-statistics" element={<LogStatistics />} />
+            <Route path="history" element={<History />} />
+            <Route path="users" element={<Users />} />
+            <Route path="roles" element={<Roles />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="upstreams" element={<Upstreams />} />
+            <Route path="servers" element={<Servers />} />
+            <Route path="stats" element={<Stats />} />
+            <Route path="profile" element={<Profile />} />
+          </Route>
+        </Routes>
         </Suspense>
       </ConfigProvider>
     </AuthProvider>

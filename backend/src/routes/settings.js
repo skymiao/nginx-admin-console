@@ -14,7 +14,18 @@ router.get('/', requirePermission('system:manage'), (req, res) => {
   const settings = db.prepare('SELECT * FROM settings').all();
   const settingsMap = {};
   settings.forEach(setting => {
-    settingsMap[setting.key] = setting.value;
+    if (setting.key.startsWith('rate_limit_')) {
+      try {
+        const config = JSON.parse(setting.value);
+        const type = setting.key.replace('rate_limit_', '');
+        settingsMap[`rateLimit${type.charAt(0).toUpperCase() + type.slice(1)}Window`] = config.windowMs / (60 * 1000);
+        settingsMap[`rateLimit${type.charAt(0).toUpperCase() + type.slice(1)}Max`] = config.max;
+      } catch (error) {
+        console.error(`Failed to parse rate limit config for ${setting.key}:`, error);
+      }
+    } else {
+      settingsMap[setting.key] = setting.value;
+    }
   });
   res.json(settingsMap);
 });
@@ -28,14 +39,44 @@ router.put('/', requirePermission('system:manage'), (req, res) => {
 
   try {
     Object.entries(updates).forEach(([key, value]) => {
-      const stringValue = typeof value === 'boolean' ? (value ? '1' : '0') : String(value);
-      db.prepare('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)').run(key, stringValue);
+      if (key.startsWith('rateLimit') && (key.endsWith('Window') || key.endsWith('Max'))) {
+        const type = key.replace('rateLimit', '').replace('Window', '').replace('Max', '').toLowerCase();
+        const settingKey = `rate_limit_${type}`;
+        
+        const existingConfig = db.prepare('SELECT value FROM settings WHERE key = ?').get(settingKey);
+        let config = existingConfig ? JSON.parse(existingConfig.value) : {};
+        
+        if (key.endsWith('Window')) {
+          config.windowMs = value * 60 * 1000;
+        } else if (key.endsWith('Max')) {
+          config.max = value;
+        }
+        
+        db.prepare('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)').run(
+          settingKey,
+          JSON.stringify(config)
+        );
+      } else {
+        const stringValue = typeof value === 'boolean' ? (value ? '1' : '0') : String(value);
+        db.prepare('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)').run(key, stringValue);
+      }
     });
 
     const settings = db.prepare('SELECT * FROM settings').all();
     const settingsMap = {};
     settings.forEach(setting => {
-      settingsMap[setting.key] = setting.value;
+      if (setting.key.startsWith('rate_limit_')) {
+        try {
+          const config = JSON.parse(setting.value);
+          const type = setting.key.replace('rate_limit_', '');
+          settingsMap[`rateLimit${type.charAt(0).toUpperCase() + type.slice(1)}Window`] = config.windowMs / (60 * 1000);
+          settingsMap[`rateLimit${type.charAt(0).toUpperCase() + type.slice(1)}Max`] = config.max;
+        } catch (error) {
+          console.error(`Failed to parse rate limit config for ${setting.key}:`, error);
+        }
+      } else {
+        settingsMap[setting.key] = setting.value;
+      }
     });
     res.json(settingsMap);
   } catch (error) {

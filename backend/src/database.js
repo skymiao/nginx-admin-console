@@ -146,6 +146,9 @@ const initDatabase = () => {
       { key: 'enable_history', value: '1' },
       { key: 'history_retention_days', value: '30' },
       { key: 'nginx_status_url', value: 'http://localhost/nginx_status' },
+      { key: 'rate_limit_auth', value: JSON.stringify({ windowMs: 15 * 60 * 1000, max: 5 }) },
+      { key: 'rate_limit_api', value: JSON.stringify({ windowMs: 15 * 60 * 1000, max: 100 }) },
+      { key: 'rate_limit_strict', value: JSON.stringify({ windowMs: 60 * 60 * 1000, max: 10 }) },
     ];
 
     console.log('Inserting default settings...');

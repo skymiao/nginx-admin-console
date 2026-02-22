@@ -472,14 +472,22 @@ router.post('/validate', requirePermission('config:write'), async (req, res) => 
       const tempIncludePath = `${configPath}/.temp_include.conf`;
       
       try {
-        await executeRemoteCommand(server, `cat > ${tempIncludePath} << 'EOF'\n${content}\nEOF`);
+        const hasEvents = content.includes('events');
+        const hasHttp = content.includes('http');
         
-        const baseConfig = `events {}
+        let configToValidate;
+        if (hasEvents || hasHttp) {
+          configToValidate = content;
+        } else {
+          await executeRemoteCommand(server, `cat > ${tempIncludePath} << 'EOF'\n${content}\nEOF`);
+          const baseConfig = `events {}
 http {
     include ${tempIncludePath};
 }`;
+          configToValidate = baseConfig;
+        }
         
-        await executeRemoteCommand(server, `cat > ${tempConfigPath} << 'EOF'\n${baseConfig}\nEOF`);
+        await executeRemoteCommand(server, `cat > ${tempConfigPath} << 'EOF'\n${configToValidate}\nEOF`);
 
         const { output, error } = await executeRemoteCommand(server, `nginx -t -c ${tempConfigPath} 2>&1`);
         
@@ -510,14 +518,22 @@ http {
     const tempIncludePath = path.join(configPath, '.temp_include.conf');
     
     try {
-      fs.writeFileSync(tempIncludePath, content, 'utf-8');
+      const hasEvents = content.includes('events');
+      const hasHttp = content.includes('http');
       
-      const baseConfig = `events {}
+      let configToValidate;
+      if (hasEvents || hasHttp) {
+        configToValidate = content;
+      } else {
+        fs.writeFileSync(tempIncludePath, content, 'utf-8');
+        const baseConfig = `events {}
 http {
     include ${tempIncludePath};
 }`;
+        configToValidate = baseConfig;
+      }
       
-      fs.writeFileSync(tempConfigPath, baseConfig, 'utf-8');
+      fs.writeFileSync(tempConfigPath, configToValidate, 'utf-8');
 
       exec(`nginx -t -c ${tempConfigPath} 2>&1`, (error, stdout, stderr) => {
         fs.unlinkSync(tempIncludePath);
