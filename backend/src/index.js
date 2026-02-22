@@ -99,7 +99,14 @@ app.use('/api/stats', require('./routes/stats'));
 app.use('/api', require('./routes/api-info'));
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  const timestamp = new Date().toISOString();
+  res.status(200).json({ 
+    success: true, 
+    data: { 
+      status: 'ok', 
+      timestamp: timestamp 
+    } 
+  });
 });
 
 app.use((req, res) => {

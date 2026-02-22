@@ -44,7 +44,8 @@ const Health = () => {
       setLoading(true);
       setError(null);
       const response = await axios.get('/health');
-      setHealthData(response.data);
+      const data = response.data?.data || response.data;
+      setHealthData(data);
     } catch (err) {
       setError(err.message || '健康检查失败');
     } finally {
@@ -339,7 +340,7 @@ const Health = () => {
                 <Card>
                   <Statistic
                     title="检查时间"
-                    value={new Date(healthData.timestamp).toLocaleString('zh-CN')}
+                    value={healthData?.timestamp ? new Date(healthData.timestamp).toLocaleString('zh-CN') : '-'}
                     prefix={<ClockCircleOutlined />}
                   />
                 </Card>
@@ -362,10 +363,10 @@ const Health = () => {
             >
               <Descriptions column={1} bordered>
                 <Descriptions.Item label="状态">
-                  <Badge status="success" text={healthData.status} />
+                  <Badge status="success" text={healthData?.status || '-'} />
                 </Descriptions.Item>
                 <Descriptions.Item label="时间戳">
-                  {healthData.timestamp}
+                  {healthData?.timestamp || '-'}
                 </Descriptions.Item>
               </Descriptions>
             </Card>

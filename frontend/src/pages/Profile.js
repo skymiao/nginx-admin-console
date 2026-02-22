@@ -30,6 +30,26 @@ import { useAuth } from '../utils/auth';
 
 const { TabPane } = Tabs;
 
+const formatDateTime = (dateTime) => {
+  if (!dateTime) return '-';
+  try {
+    const date = new Date(dateTime);
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+  } catch (error) {
+    console.error('Failed to format date:', error);
+    return '-';
+  }
+};
+
 const Profile = () => {
   const { user } = useAuth();
   const [profileForm] = Form.useForm();
@@ -46,10 +66,11 @@ const Profile = () => {
     try {
       setLoading(true);
       const response = await userAPI.getProfile();
-      setProfileData(response.data);
+      const data = response.data?.data || response.data;
+      setProfileData(data);
       profileForm.setFieldsValue({
-        username: response.data.username,
-        email: response.data.email,
+        username: data.username,
+        email: data.email,
       });
     } catch (error) {
       console.error('Failed to load profile:', error);
@@ -163,10 +184,10 @@ const Profile = () => {
                 <Tag color="green">启用</Tag>
               </Descriptions.Item>
               <Descriptions.Item label={<Space><CalendarOutlined />创建时间</Space>}>
-                {profileData?.createdAt || '-'}
+                {formatDateTime(profileData?.createdAt)}
               </Descriptions.Item>
               <Descriptions.Item label={<Space><ClockCircleOutlined />最后登录</Space>}>
-                {profileData?.lastLoginAt || '-'}
+                {formatDateTime(profileData?.lastLoginAt)}
               </Descriptions.Item>
             </Descriptions>
           </Card>
