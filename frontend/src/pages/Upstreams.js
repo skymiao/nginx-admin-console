@@ -59,7 +59,7 @@ const Upstreams = () => {
       setLoading(true);
       const configPath = upstreamRecord.file;
       const response = await configAPI.get(configPath, selectedServer);
-      let content = response.data.content;
+      let content = response.data?.data?.content || response.data?.content || '';
       
       const upstreamName = upstreamRecord.name;
       
@@ -168,7 +168,7 @@ const Upstreams = () => {
       setLoading(true);
       const configPath = upstreamRecord ? upstreamRecord.file : selectedUpstream.file;
       const response = await configAPI.get(configPath, selectedServer);
-      let content = response.data.content;
+      let content = response.data?.data?.content || response.data?.content || '';
       
       const upstreamName = upstreamRecord ? upstreamRecord.name : selectedUpstream.name;
       

@@ -86,10 +86,12 @@ const Stats = () => {
     try {
       setLoading(true);
       const response = await serverAPI.getStats(selectedServer);
-      setStats(response.data);
+      const data = response.data?.data || response.data || {};
+      setStats(data);
       
       const historyResponse = await serverAPI.getStatsHistory(selectedServer);
-      setHistory(historyResponse.data.history || []);
+      const historyData = historyResponse.data?.data || historyResponse.data || {};
+      setHistory(historyData.history || []);
     } catch (error) {
       console.error('Failed to load stats:', error);
       message.error('加载统计信息失败');

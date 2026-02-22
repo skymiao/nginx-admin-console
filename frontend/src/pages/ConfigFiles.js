@@ -79,11 +79,13 @@ const ConfigFiles = () => {
       setLoading(true);
       const targetServerId = serverIdOverride || selectedServer;
       const response = await configAPI.get(filePath, targetServerId);
-      setEditorContent(response.data.content);
+      const content = response.data?.data?.content || response.data?.content || '';
+      setEditorContent(content);
       setCurrentConfig({ path: filePath, name: filePath.split('/').pop() });
       setEditorModalVisible(true);
     } catch (error) {
       message.error('加载配置文件失败');
+      console.error('Failed to load config content:', error);
     } finally {
       setLoading(false);
     }
@@ -115,7 +117,8 @@ const ConfigFiles = () => {
     try {
       setLoading(true);
       const response = await configAPI.list(selectedServer);
-      setConfigs(response.data?.data || []);
+      const data = response.data?.data || response.data || [];
+      setConfigs(Array.isArray(data) ? data : []);
     } catch (error) {
       message.error('加载配置文件失败');
       console.error('Failed to load configs:', error);

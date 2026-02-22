@@ -165,20 +165,31 @@ const Layout = ({ isDarkMode, setIsDarkMode }) => {
           zIndex: 1000,
         }}
       >
-        <div className="logo-container" style={{
-          height: 64,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontSize: collapsed ? 18 : 22,
-          fontWeight: 700,
-          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-          background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
-          cursor: 'pointer',
-          transition: 'all 0.3s ease',
-        }}
-        onClick={() => navigate('/dashboard')}
+        <div 
+          className="logo-container" 
+          style={{
+            height: 64,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: collapsed ? 18 : 22,
+            fontWeight: 700,
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          onClick={() => navigate('/dashboard')}
+          role="button"
+          tabIndex={0}
+          aria-label="Nginx Admin - 返回仪表盘"
+          onKeyPress={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate('/dashboard');
+            }
+          }}
         >
           {collapsed ? (
             <span style={{ fontSize: 24, fontWeight: 800 }}>N</span>
@@ -207,6 +218,8 @@ const Layout = ({ isDarkMode, setIsDarkMode }) => {
             marginTop: 16,
           }}
           className="app-menu"
+          role="navigation"
+          aria-label="主导航菜单"
         />
       </Sider>
       <AntLayout style={{ marginLeft: collapsed ? 80 : 240, transition: 'margin-left 0.2s ease' }}>
@@ -238,6 +251,7 @@ const Layout = ({ isDarkMode, setIsDarkMode }) => {
                 transition: 'all 0.2s ease',
               }}
               className="menu-toggle-btn"
+              aria-label={collapsed ? '展开菜单' : '收起菜单'}
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -254,6 +268,7 @@ const Layout = ({ isDarkMode, setIsDarkMode }) => {
                   color: isDarkMode ? '#FBBF24' : '#64748B',
                 }}
                 className="theme-toggle-btn"
+                aria-label={isDarkMode ? '切换到浅色主题' : '切换到深色主题'}
               />
             </Tooltip>
             <Tooltip title="通知">
@@ -268,6 +283,7 @@ const Layout = ({ isDarkMode, setIsDarkMode }) => {
                     borderRadius: '8px',
                     color: '#64748B',
                   }}
+                  aria-label="通知"
                 />
               </Badge>
             </Tooltip>
@@ -290,6 +306,14 @@ const Layout = ({ isDarkMode, setIsDarkMode }) => {
                   minWidth: 'fit-content',
                 }}
                 className="user-dropdown"
+                role="button"
+                tabIndex={0}
+                aria-label={`用户菜单，当前用户：${user?.username || 'Admin'}，角色：${user?.role || 'admin'}`}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                  }
+                }}
               >
                 <Avatar 
                   icon={<UserOutlined />} 
@@ -299,6 +323,7 @@ const Layout = ({ isDarkMode, setIsDarkMode }) => {
                     border: '2px solid #E2E8F0',
                     flexShrink: 0,
                   }}
+                  alt={user?.username || 'Admin'}
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.3, minWidth: 0 }}>
                   <span style={{ 
@@ -329,6 +354,8 @@ const Layout = ({ isDarkMode, setIsDarkMode }) => {
             background: 'transparent',
           }}
           className="app-content"
+          role="main"
+          aria-label="主要内容区域"
         >
           <Outlet />
         </Content>

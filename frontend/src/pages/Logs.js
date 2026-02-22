@@ -238,10 +238,10 @@ const Logs = () => {
     setServersLoading(true);
     try {
       const response = await serverAPI.getServers();
-      if (response.data && Array.isArray(response.data)) {
-        const filteredServers = response.data.filter(server => !server.is_default);
-        setServers(filteredServers);
-      }
+      const data = response.data?.data || response.data || [];
+      const servers = Array.isArray(data) ? data : [];
+      const filteredServers = servers.filter(server => !server.is_default);
+      setServers(filteredServers);
     } catch (error) {
       console.error('Failed to load servers:', error);
     } finally {
@@ -252,9 +252,8 @@ const Logs = () => {
   const loadLogFiles = async () => {
     try {
       const response = await logAPI.getFiles(selectedServer);
-      if (response.data && Array.isArray(response.data)) {
-        setLogFiles(response.data);
-      }
+      const data = response.data?.data || response.data || [];
+      setLogFiles(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load log files:', error);
       setLogFiles([]);
@@ -275,12 +274,11 @@ const Logs = () => {
           keyword: searchKeyword,
           serverId: selectedServer,
         });
-        if (response.data) {
-          setAccessLogs(response.data.logs || '');
-          setTotalMatches(response.data.total || 0);
-          setFilteredTotal(response.data.filteredTotal || 0);
-          setStats(response.data.stats || { total: 0, success: 0, error: 0, redirect: 0 });
-        }
+        const data = response.data?.data || response.data || {};
+        setAccessLogs(data.logs || '');
+        setTotalMatches(data.total || 0);
+        setFilteredTotal(data.filteredTotal || 0);
+        setStats(data.stats || { total: 0, success: 0, error: 0, redirect: 0 });
       } else if (activeTab === 'error') {
         const response = await logAPI.getErrorLog({
           file: selectedLogFile,
@@ -288,12 +286,11 @@ const Logs = () => {
           keyword: searchKeyword,
           serverId: selectedServer,
         });
-        if (response.data) {
-          setErrorLogs(response.data.logs || '');
-          setTotalMatches(response.data.total || 0);
-          setFilteredTotal(response.data.filteredTotal || 0);
-          setStats(response.data.stats || { total: 0, warn: 0, info: 0 });
-        }
+        const data = response.data?.data || response.data || {};
+        setErrorLogs(data.logs || '');
+        setTotalMatches(data.total || 0);
+        setFilteredTotal(data.filteredTotal || 0);
+        setStats(data.stats || { total: 0, warn: 0, info: 0 });
       }
     } catch (error) {
       console.error('Failed to load logs:', error);

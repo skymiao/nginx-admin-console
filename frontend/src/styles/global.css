@@ -1,15 +1,34 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+:root {
+  --focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.5);
+  --focus-ring-dark: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  --touch-target: 44px;
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --line-height-body: 1.6;
+  --line-height-heading: 1.3;
+}
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: var(--line-height-body);
+  color: #0F172A;
+  background: #F8FAFC;
 }
 
 code,
@@ -43,7 +62,7 @@ pre {
 
 .ant-card {
   border: 1px solid #E2E8F0;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-base);
 }
 
 .ant-card:hover {
@@ -58,11 +77,11 @@ pre {
 .ant-table-thead > tr > th {
   background: #F8FAFC;
   font-weight: 600;
-  color: #1E293B;
+  color: #0F172A;
 }
 
 .ant-table-tbody > tr {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-base);
 }
 
 .ant-table-tbody > tr:hover {
@@ -70,7 +89,12 @@ pre {
 }
 
 .ant-btn {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-base);
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ant-btn:hover {
@@ -81,16 +105,28 @@ pre {
   transform: translateY(0);
 }
 
+.ant-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .ant-input,
 .ant-input-number,
 .ant-select-selector {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-base);
 }
 
 .ant-input:focus,
 .ant-input-number:focus,
 .ant-select-focused .ant-select-selector {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.ant-input:focus-visible,
+.ant-input-number:focus-visible,
+.ant-select-focused .ant-select-selector:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .ant-modal {
@@ -113,7 +149,7 @@ pre {
 
 .ant-statistic-title {
   font-weight: 500;
-  color: #64748B;
+  color: #475569;
 }
 
 .ant-statistic-content {
@@ -144,15 +180,15 @@ pre {
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeIn var(--transition-slow);
 }
 
 .animate-slide-up {
-  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: slideUp var(--transition-slow);
 }
 
 .animate-scale-in {
-  animation: scaleIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: scaleIn var(--transition-base);
 }
 
 @keyframes fadeIn {
@@ -229,7 +265,7 @@ pre {
 .stat-card {
   border-radius: 12px;
   border: 1px solid #E2E8F0;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-slow);
   cursor: pointer;
   position: relative;
   z-index: 1;
@@ -243,13 +279,18 @@ pre {
   z-index: 2;
 }
 
+.stat-card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .stat-card .ant-card-body {
   padding: 20px 24px;
 }
 
 .stat-card .ant-statistic-title {
   font-size: 13px;
-  color: #64748B;
+  color: #475569;
   margin-bottom: 8px;
 }
 
@@ -313,6 +354,7 @@ pre {
   padding: 12px 20px;
   font-weight: 500;
   border-radius: 8px 8px 0 0;
+  min-height: var(--touch-target);
 }
 
 .log-entry:hover {
@@ -342,7 +384,7 @@ pre {
 .upstream-table .ant-table-thead > tr > th {
   background: #F8FAFC;
   font-weight: 600;
-  color: #1E293B;
+  color: #0F172A;
   padding: 12px 16px;
 }
 
@@ -357,7 +399,7 @@ pre {
 .server-table .ant-table-thead > tr > th {
   background: #F1F5F9;
   font-weight: 600;
-  color: #1E293B;
+  color: #0F172A;
   padding: 10px 12px;
 }
 
@@ -391,7 +433,7 @@ pre {
 .users-table .ant-table-thead > tr > th {
   background: #F8FAFC;
   font-weight: 600;
-  color: #1E293B;
+  color: #0F172A;
   padding: 12px 16px;
 }
 
@@ -485,19 +527,19 @@ pre {
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.4s ease-out;
+  animation: fadeIn var(--transition-slow);
 }
 
 .animate-slide-in-left {
-  animation: slideInLeft 0.4s ease-out;
+  animation: slideInLeft var(--transition-slow);
 }
 
 .animate-slide-in-right {
-  animation: slideInRight 0.4s ease-out;
+  animation: slideInRight var(--transition-slow);
 }
 
 .animate-scale-in {
-  animation: scaleIn 0.3s ease-out;
+  animation: scaleIn var(--transition-base);
 }
 
 .animate-pulse {
@@ -505,7 +547,12 @@ pre {
 }
 
 .ant-btn {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-base);
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ant-btn:hover {
@@ -517,14 +564,19 @@ pre {
   transform: translateY(0);
 }
 
+.ant-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .ant-card {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-slow);
 }
 
 .ant-input,
 .ant-input-number,
 .ant-select-selector {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--transition-base);
 }
 
 .ant-input:hover,
@@ -540,8 +592,15 @@ pre {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+.ant-input:focus-visible,
+.ant-input-number:focus-visible,
+.ant-select-focused .ant-select-selector:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .ant-table-tbody > tr {
-  transition: all 0.2s ease;
+  transition: all var(--transition-base);
 }
 
 .ant-table-tbody > tr:hover > td {
@@ -549,7 +608,7 @@ pre {
 }
 
 .ant-tag {
-  transition: all 0.2s ease;
+  transition: all var(--transition-base);
 }
 
 .ant-tag:hover {
@@ -557,15 +616,15 @@ pre {
 }
 
 .ant-modal {
-  animation: scaleIn 0.2s ease-out;
+  animation: scaleIn var(--transition-base);
 }
 
 .ant-notification {
-  animation: slideInRight 0.3s ease-out;
+  animation: slideInRight var(--transition-slow);
 }
 
 .ant-message {
-  animation: slideInTop 0.3s ease-out;
+  animation: slideInTop var(--transition-slow);
 }
 
 @keyframes slideInTop {
@@ -587,7 +646,7 @@ pre {
 }
 
 .hover-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
 }
 
 .hover-lift:hover {
@@ -596,7 +655,7 @@ pre {
 }
 
 .click-feedback {
-  transition: transform 0.1s ease;
+  transition: transform var(--transition-fast);
 }
 
 .click-feedback:active {
@@ -770,7 +829,7 @@ pre {
 
 .app-sider {
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-  transition: width 0.2s ease;
+  transition: width var(--transition-base);
 }
 
 .logo-container:hover {
@@ -780,11 +839,11 @@ pre {
 .app-menu .ant-menu-item {
   margin: 4px 12px;
   border-radius: 8px;
-  height: 44px;
-  line-height: 44px;
+  height: var(--touch-target);
+  line-height: var(--touch-target);
   display: flex;
   align-items: center;
-  transition: all 0.2s ease;
+  transition: all var(--transition-base);
 }
 
 .app-menu .ant-menu-item:hover {
@@ -822,18 +881,33 @@ pre {
   transform: scale(0.95);
 }
 
+.menu-toggle-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .theme-toggle-btn:hover {
   background: #F1F5F9;
   transform: rotate(180deg);
 }
 
 .theme-toggle-btn {
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .user-dropdown:hover {
   background: #F1F5F9;
   border-color: #E2E8F0;
+}
+
+.user-dropdown:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .user-dropdown-menu {
@@ -848,6 +922,9 @@ pre {
 .user-dropdown-menu .ant-dropdown-menu-item {
   padding: 8px 16px;
   font-size: 14px;
+  min-height: var(--touch-target);
+  display: flex;
+  align-items: center;
 }
 
 .app-content {
@@ -857,7 +934,7 @@ pre {
 @media (max-width: 768px) {
   .app-sider {
     transform: translateX(-100%);
-    transition: transform 0.3s ease;
+    transition: transform var(--transition-slow);
   }
 
   .app-sider.mobile-open {
@@ -879,4 +956,88 @@ pre {
   .user-dropdown > div > div > span {
     display: block;
   }
+}
+
+[data-theme='dark'] {
+  body {
+    color: #F8FAFC;
+    background: #0F172A;
+  }
+
+  .ant-statistic-title {
+    color: #94A3B8;
+  }
+
+  .stat-card .ant-statistic-title {
+    color: #94A3B8;
+  }
+
+  .ant-btn:focus-visible {
+    box-shadow: var(--focus-ring-dark);
+  }
+
+  .ant-input:focus-visible,
+  .ant-input-number:focus-visible,
+  .ant-select-focused .ant-select-selector:focus-visible {
+    box-shadow: var(--focus-ring-dark);
+  }
+
+  .stat-card:focus-visible {
+    box-shadow: var(--focus-ring-dark);
+  }
+
+  .menu-toggle-btn:focus-visible {
+    box-shadow: var(--focus-ring-dark);
+  }
+
+  .theme-toggle-btn:focus-visible {
+    box-shadow: var(--focus-ring-dark);
+  }
+
+  .user-dropdown:focus-visible {
+    box-shadow: var(--focus-ring-dark);
+  }
+}
+
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+[data-theme='dark'] a:focus-visible,
+[data-theme='dark'] button:focus-visible,
+[data-theme='dark'] [tabindex]:focus-visible {
+  box-shadow: var(--focus-ring-dark);
+}
+
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3B82F6;
+  color: white;
+  padding: 12px 24px;
+  z-index: 9999;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: top var(--transition-base);
+}
+
+.skip-link:focus {
+  top: 16px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

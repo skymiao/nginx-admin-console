@@ -165,10 +165,10 @@ router.get('/files', requirePermission('log:read'), async (req, res) => {
       logFiles = getAvailableLogFiles();
     }
 
-    res.json(logFiles);
+    res.json({ success: true, data: logFiles });
   } catch (error) {
     console.error('Error getting log files:', error);
-    res.status(500).json({ message: '获取日志文件失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取日志文件失败', error: error.message });
   }
 });
 
@@ -273,15 +273,26 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
 
     const lastLines = filteredLogs.slice(-lines);
     res.json({ 
-      logs: lastLines.join('\n'),
-      total: totalLines,
-      filteredTotal: filteredLogs.length,
-      stats,
-      filtered: true,
+      success: true,
+      data: {
+        logs: lastLines.join('\n'),
+        total: totalLines,
+        filteredTotal: filteredLogs.length,
+        stats,
+        filtered: true,
+      }
     });
   } catch (error) {
     console.error('Error reading access log:', error);
-    res.json({ logs: '', total: 0, filteredTotal: 0, stats: { success: 0, error: 0, redirect: 0, statusCodes: {}, methods: {} } });
+    res.json({ 
+      success: true,
+      data: {
+        logs: '', 
+        total: 0, 
+        filteredTotal: 0, 
+        stats: { success: 0, error: 0, redirect: 0, statusCodes: {}, methods: {} } 
+      }
+    });
   }
 });
 
@@ -310,7 +321,7 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
       const errorLogPath = path.join(logPath, logFile);
 
       if (!fs.existsSync(errorLogPath)) {
-        return res.json({ logs: '', total: 0, filteredTotal: 0 });
+        return res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0 } });
       }
 
       content = fs.readFileSync(errorLogPath, 'utf-8');
@@ -331,14 +342,17 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
 
     const lastLines = filteredLogs.slice(-lines);
     res.json({ 
-      logs: lastLines.join('\n'),
-      total: totalLines,
-      filteredTotal: filteredLogs.length,
-      filtered: true,
+      success: true,
+      data: {
+        logs: lastLines.join('\n'),
+        total: totalLines,
+        filteredTotal: filteredLogs.length,
+        filtered: true,
+      }
     });
   } catch (error) {
     console.error('Error reading error log:', error);
-    res.json({ logs: '', total: 0, filteredTotal: 0 });
+    res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0 } });
   }
 });
 
@@ -369,7 +383,7 @@ router.get('/trend', requirePermission('log:read'), async (req, res) => {
       const accessLogPath = path.join(logPath, logFile);
 
       if (!fs.existsSync(accessLogPath)) {
-        return res.json({ trend: [], total: 0 });
+        return res.json({ success: true, data: { trend: [], total: 0 } });
       }
 
       content = fs.readFileSync(accessLogPath, 'utf-8');
@@ -441,13 +455,16 @@ router.get('/trend', requirePermission('log:read'), async (req, res) => {
     }
 
     res.json({ 
-      trend: hourlyBuckets,
-      total: totalLines,
-      interval: minutes,
+      success: true,
+      data: {
+        trend: hourlyBuckets,
+        total: totalLines,
+        interval: minutes,
+      }
     });
   } catch (error) {
     console.error('Error getting log trend:', error);
-    res.json({ trend: [], total: 0, interval: minutes });
+    res.json({ success: true, data: { trend: [], total: 0, interval: minutes } });
   }
 });
 

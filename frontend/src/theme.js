@@ -18,10 +18,10 @@ const colors = {
   },
   
   text: {
-    primary: '#1E293B',
-    secondary: '#64748B',
-    tertiary: '#94A3B8',
-    inverse: '#FFFFFF'
+    primary: '#0F172A',
+    secondary: '#475569',
+    tertiary: '#64748B',
+    inverse: '#F8FAFC'
   },
   
   border: {
@@ -83,13 +83,19 @@ const lightTheme = {
     colorBorder: colors.border.light,
     borderRadius: borderRadius.md,
     fontFamily: fonts.primary,
-    fontSize: 14
+    fontSize: 14,
+    colorText: colors.text.primary,
+    colorTextSecondary: colors.text.secondary,
+    colorTextTertiary: colors.text.tertiary,
   },
   components: {
     Button: {
       borderRadius: borderRadius.md,
       boxShadow: 'none',
-      boxShadowSecondary: 'none'
+      boxShadowSecondary: 'none',
+      controlHeight: 44,
+      controlHeightLG: 48,
+      controlHeightSM: 36,
     },
     Card: {
       borderRadius: borderRadius.lg,
@@ -98,18 +104,36 @@ const lightTheme = {
     Table: {
       borderRadius: borderRadius.md,
       headerBg: colors.background.surface,
-      headerColor: colors.text.primary
+      headerColor: colors.text.primary,
+      headerSplitColor: colors.border.light,
     },
     Input: {
       borderRadius: borderRadius.md,
-      boxShadow: 'none'
+      boxShadow: 'none',
+      controlHeight: 44,
+      controlHeightLG: 48,
+      controlHeightSM: 36,
     },
     Modal: {
       borderRadius: borderRadius.xl
     },
     Form: {
       itemMarginBottom: spacing.md
-    }
+    },
+    Menu: {
+      itemBorderRadius: borderRadius.md,
+      itemHeight: 44,
+    },
+    Select: {
+      controlHeight: 44,
+      controlHeightLG: 48,
+      controlHeightSM: 36,
+    },
+    DatePicker: {
+      controlHeight: 44,
+      controlHeightLG: 48,
+      controlHeightSM: 36,
+    },
   }
 };
 
@@ -128,13 +152,19 @@ const darkTheme = {
     colorBorder: colors.border.dark,
     borderRadius: borderRadius.md,
     fontFamily: fonts.primary,
-    fontSize: 14
+    fontSize: 14,
+    colorText: colors.text.inverse,
+    colorTextSecondary: colors.text.tertiary,
+    colorTextTertiary: '#94A3B8',
   },
   components: {
     Button: {
       borderRadius: borderRadius.md,
       boxShadow: 'none',
-      boxShadowSecondary: 'none'
+      boxShadowSecondary: 'none',
+      controlHeight: 44,
+      controlHeightLG: 48,
+      controlHeightSM: 36,
     },
     Card: {
       borderRadius: borderRadius.lg,
@@ -143,18 +173,36 @@ const darkTheme = {
     Table: {
       borderRadius: borderRadius.md,
       headerBg: colors.background.surfaceDark,
-      headerColor: colors.text.inverse
+      headerColor: colors.text.inverse,
+      headerSplitColor: colors.border.dark,
     },
     Input: {
       borderRadius: borderRadius.md,
-      boxShadow: 'none'
+      boxShadow: 'none',
+      controlHeight: 44,
+      controlHeightLG: 48,
+      controlHeightSM: 36,
     },
     Modal: {
       borderRadius: borderRadius.xl
     },
     Form: {
       itemMarginBottom: spacing.md
-    }
+    },
+    Menu: {
+      itemBorderRadius: borderRadius.md,
+      itemHeight: 44,
+    },
+    Select: {
+      controlHeight: 44,
+      controlHeightLG: 48,
+      controlHeightSM: 36,
+    },
+    DatePicker: {
+      controlHeight: 44,
+      controlHeightLG: 48,
+      controlHeightSM: 36,
+    },
   }
 };
 

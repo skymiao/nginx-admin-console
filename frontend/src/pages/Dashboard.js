@@ -180,8 +180,9 @@ const Dashboard = () => {
         return;
       }
       const response = await logAPI.getAccessLog({ file: 'access.log', lines: 1000, serverId });
-      const backendStats = response.data?.stats || { success: 0, error: 0, redirect: 0, statusCodes: {}, methods: {} };
-      const totalRequests = response.data?.total || 0;
+      const data = response.data?.data || response.data || {};
+      const backendStats = data.stats || { success: 0, error: 0, redirect: 0, statusCodes: {}, methods: {} };
+      const totalRequests = data.total || 0;
       const successRate = totalRequests > 0 
         ? (backendStats.success / totalRequests * 100).toFixed(2) 
         : 0;
@@ -233,7 +234,8 @@ const Dashboard = () => {
     try {
       setTrendLoading(true);
       const response = await logAPI.getTrend('access.log', selectedServer);
-      setTrendData(response.data?.trend || []);
+      const data = response.data?.data || response.data || {};
+      setTrendData(data.trend || []);
     } catch (error) {
       console.error('Failed to load trend data:', error);
       setTrendData([]);

@@ -78,7 +78,8 @@ const LogStatistics = () => {
           hours 
         } 
       });
-      setStats(response.data);
+      const data = response.data?.data || response.data || {};
+      setStats(data);
     } catch (error) {
       console.error('Failed to load statistics:', error);
       message.error('加载统计信息失败');
@@ -96,7 +97,8 @@ const LogStatistics = () => {
           days 
         } 
       });
-      setTrends(response.data);
+      const data = response.data?.data || response.data || [];
+      setTrends(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load trends:', error);
       message.error('加载趋势数据失败');

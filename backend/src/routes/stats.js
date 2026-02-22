@@ -69,10 +69,10 @@ router.get('/', requirePermission('server:read'), async (req, res) => {
     }
 
     const stats = parseStubStatus(output);
-    res.json(stats);
+    res.json({ success: true, data: stats });
   } catch (error) {
     console.error('Failed to get nginx stats:', error);
-    res.status(500).json({ message: '获取nginx统计信息失败' });
+    res.status(500).json({ success: false, message: '获取nginx统计信息失败' });
   }
 });
 
@@ -99,19 +99,22 @@ router.get('/history', requirePermission('server:read'), async (req, res) => {
     ).all(serverId || 'local');
 
     res.json({
-      current: stats,
-      history: history.map(h => ({
-        timestamp: h.timestamp,
-        activeConnections: h.active_connections,
-        requests: h.requests,
-        reading: h.reading,
-        writing: h.writing,
-        waiting: h.waiting,
-      })),
+      success: true,
+      data: {
+        current: stats,
+        history: history.map(h => ({
+          timestamp: h.timestamp,
+          activeConnections: h.active_connections,
+          requests: h.requests,
+          reading: h.reading,
+          writing: h.writing,
+          waiting: h.waiting,
+        })),
+      }
     });
   } catch (error) {
     console.error('Failed to get nginx stats history:', error);
-    res.status(500).json({ message: '获取nginx统计历史失败' });
+    res.status(500).json({ success: false, message: '获取nginx统计历史失败' });
   }
 });
 

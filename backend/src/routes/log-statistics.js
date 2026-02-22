@@ -198,10 +198,10 @@ router.get('/statistics', requirePermission('log:read'), async (req, res) => {
     const logs = parseAccessLog(content);
     const stats = calculateStatistics(logs);
 
-    res.json(stats);
+    res.json({ success: true, data: stats });
   } catch (error) {
     console.error('Error getting log statistics:', error);
-    res.status(500).json({ message: '获取日志统计失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取日志统计失败', error: error.message });
   }
 });
 
@@ -264,10 +264,10 @@ router.get('/trends', requirePermission('log:read'), async (req, res) => {
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-parseInt(days));
 
-    res.json(trendData);
+    res.json({ success: true, data: trendData });
   } catch (error) {
     console.error('Error getting log trends:', error);
-    res.status(500).json({ message: '获取趋势数据失败', error: error.message });
+    res.status(500).json({ success: false, message: '获取趋势数据失败', error: error.message });
   }
 });
 
