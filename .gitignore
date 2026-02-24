@@ -75,6 +75,12 @@ Thumbs.db
 *.seed
 *.pid.lock
 
+# Nginx data (runtime data)
+nginx-data/
+
+# Docker build output
+docker-build/
+
 # Production
 *.min.js
 *.min.css

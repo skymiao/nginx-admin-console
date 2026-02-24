@@ -13,6 +13,7 @@ const { updateRolePermissions } = require('./migrations/updateRolePermissions');
 const { updateDefaultServerStatusUrl } = require('./migrations/updateDefaultServerStatusUrl');
 const { updateRolePermissions: updateRolePermissions2 } = require('./migrations/updateRolePermissions2');
 const addIndexes = require('./migrations/addIndexes');
+const { addIsLocalColumn } = require('./migrations/addIsLocalField');
 const { errorHandler } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 
@@ -30,6 +31,7 @@ updateRolePermissions();
 updateDefaultServerStatusUrl();
 updateRolePermissions2();
 addIndexes();
+addIsLocalColumn();
 
 app.use(helmet({
   contentSecurityPolicy: {

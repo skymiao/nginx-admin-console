@@ -1,8 +1,31 @@
 version: '3.8'
 
 services:
+  nginx:
+    container_name: nginx-admin-nginx
+    image: nginx:latest
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+      - "8443:443"
+    volumes:
+      - ./nginx-data/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-data/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx-data/html:/usr/share/nginx/html:ro
+      - ./nginx-data/logs:/var/log/nginx
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - nginx-admin-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/nginx_status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   backend:
-    container_name: nginx-admin-backend:${VERSION:-latest}
+    container_name: nginx-admin-backend
+    image: nginx-admin-console-backend:${VERSION:-latest}
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -12,11 +35,14 @@ services:
       - NGINX_LOG_PATH=/var/log/nginx
       - DB_PATH=/tmp/nginx-admin.db
     volumes:
-      - /root/test/nginx-data:/tmp
-      - /etc/nginx:/etc/nginx
-      - /var/log/nginx:/var/log/nginx
+      - ./nginx-data:/tmp/nginx-admin
+      - ./nginx-data/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-data/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx-data/logs:/var/log/nginx
     networks:
       - nginx-admin-network
+    depends_on:
+      - nginx
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5000/health"]
       interval: 30s
@@ -25,7 +51,8 @@ services:
       start_period: 40s
 
   frontend:
-    container_name: nginx-admin-frontend:${VERSION:-latest}
+    container_name: nginx-admin-frontend
+    image: nginx-admin-console-frontend:${VERSION:-latest}
     restart: unless-stopped
     ports:
       - "8080:8080"

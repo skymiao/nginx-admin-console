@@ -128,10 +128,11 @@ const Servers = () => {
       if (response.data.success) {
         message.success('连接成功');
       } else {
-        message.error(response.data.message || '连接失败');
+        message.error(response.data.message || response.data.error || '连接失败');
       }
     } catch (error) {
-      message.error('连接测试失败');
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || error.message || '连接测试失败';
+      message.error(errorMsg);
     } finally {
       setTestLoading(false);
     }
@@ -380,6 +381,28 @@ const Servers = () => {
             />
           </Form.Item>
           <Form.Item
+            name="isLocal"
+            label="服务器类型"
+            valuePropName="checked"
+          >
+            <Switch 
+              checkedChildren="本地服务器" 
+              unCheckedChildren="远程服务器"
+              onChange={(checked) => {
+                if (checked) {
+                  form.setFieldsValue({
+                    host: 'localhost',
+                    port: 22,
+                    username: 'root',
+                    password: null,
+                    privateKey: null,
+                    nginxStatusUrl: 'http://localhost:8081/nginx_status',
+                  });
+                }
+              }}
+            />
+          </Form.Item>
+          <Form.Item
             name="host"
             label="主机地址"
             rules={[
@@ -407,6 +430,7 @@ const Servers = () => {
             <Input
               placeholder="例如: 192.168.1.100 或 example.com"
               size="large"
+              disabled={form.getFieldValue('isLocal')}
             />
           </Form.Item>
           <Row gutter={16}>
