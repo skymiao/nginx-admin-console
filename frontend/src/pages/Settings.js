@@ -12,6 +12,8 @@ import {
   Row,
   Col,
   Switch,
+  InputNumber,
+  Select,
 } from 'antd';
 import {
   SaveOutlined,
@@ -21,8 +23,11 @@ import {
   SettingOutlined,
   SafetyOutlined,
   CheckCircleOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
 import { settingsAPI, nginxAPI } from '../services/api';
+
+const { Option } = Select;
 
 const Settings = () => {
   const [loading, setLoading] = useState(false);
@@ -232,6 +237,104 @@ const Settings = () => {
                   type="number"
                   prefix={<SafetyOutlined />}
                   placeholder="30"
+                />
+              </Form.Item>
+
+              <Divider orientation="left">API 速率限制</Divider>
+              <Form.Item
+                name="rateLimitAuthWindow"
+                label="登录接口时间窗口（分钟）"
+                rules={[
+                  { required: true, message: '请输入时间窗口' },
+                ]}
+                extra="登录接口速率限制的时间窗口"
+              >
+                <InputNumber
+                  min={1}
+                  max={60}
+                  style={{ width: '100%' }}
+                  prefix={<ThunderboltOutlined />}
+                  placeholder="15"
+                />
+              </Form.Item>
+              <Form.Item
+                name="rateLimitAuthMax"
+                label="登录接口最大请求数"
+                rules={[
+                  { required: true, message: '请输入最大请求数' },
+                ]}
+                extra="登录接口在时间窗口内的最大请求数"
+              >
+                <InputNumber
+                  min={1}
+                  max={100}
+                  style={{ width: '100%' }}
+                  prefix={<ThunderboltOutlined />}
+                  placeholder="5"
+                />
+              </Form.Item>
+              <Form.Item
+                name="rateLimitApiWindow"
+                label="通用 API 时间窗口（分钟）"
+                rules={[
+                  { required: true, message: '请输入时间窗口' },
+                ]}
+                extra="通用 API 速率限制的时间窗口"
+              >
+                <InputNumber
+                  min={1}
+                  max={60}
+                  style={{ width: '100%' }}
+                  prefix={<ThunderboltOutlined />}
+                  placeholder="15"
+                />
+              </Form.Item>
+              <Form.Item
+                name="rateLimitApiMax"
+                label="通用 API 最大请求数"
+                rules={[
+                  { required: true, message: '请输入最大请求数' },
+                ]}
+                extra="通用 API 在时间窗口内的最大请求数"
+              >
+                <InputNumber
+                  min={1}
+                  max={1000}
+                  style={{ width: '100%' }}
+                  prefix={<ThunderboltOutlined />}
+                  placeholder="100"
+                />
+              </Form.Item>
+              <Form.Item
+                name="rateLimitStrictWindow"
+                label="严格限制时间窗口（分钟）"
+                rules={[
+                  { required: true, message: '请输入时间窗口' },
+                ]}
+                extra="严格限制（敏感操作）的时间窗口"
+              >
+                <InputNumber
+                  min={1}
+                  max={120}
+                  style={{ width: '100%' }}
+                  prefix={<ThunderboltOutlined />}
+                  placeholder="60"
+                />
+              </Form.Item>
+              <Form.Item
+                name="rateLimitStrictMax"
+                label="严格限制最大请求数"
+                rules={[
+                  { required: true, message: '请输入最大请求数' },
+                ]}
+                extra="严格限制在时间窗口内的最大请求数"
+              >
+                <InputNumber
+                  min={1}
+                  max={100}
+                  style={{ width: '100%' }}
+                  prefix={<ThunderboltOutlined />}
+                  placeholder="10"
                 />
               </Form.Item>
             </Form>

@@ -15,6 +15,7 @@ import Upstreams from './pages/Upstreams';
 import Servers from './pages/Servers';
 import Stats from './pages/Stats';
 import Profile from './pages/Profile';
+import Health from './pages/Health';
 import { AuthProvider, useAuth } from './utils/auth';
 import { lightTheme, darkTheme } from './theme';
 import './styles/global.css';
@@ -43,6 +44,7 @@ function App() {
       >
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/health" element={<Health />} />
           <Route
             path="/"
             element={

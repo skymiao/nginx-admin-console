@@ -52,6 +52,8 @@ const ConfigFiles = () => {
   const [editorContent, setEditorContent] = useState('');
   const [validating, setValidating] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -193,10 +195,11 @@ const ConfigFiles = () => {
     try {
       setValidating(true);
       const response = await configAPI.validate(editorContent, selectedServer);
-      if (response.data.valid) {
+      const data = response.data?.data || response.data;
+      if (data.valid) {
         message.success('配置验证通过');
       } else {
-        message.error(`配置验证失败: ${response.data.error}`);
+        message.error(`配置验证失败: ${data.error}`);
       }
     } catch (error) {
       message.error('验证失败');
@@ -503,11 +506,16 @@ const ConfigFiles = () => {
               rowKey="path"
               loading={loading}
               pagination={{
-                pageSize: 10,
+                current: currentPage,
+                pageSize: pageSize,
                 pageSizeOptions: ['10', '20', '50', '100'],
                 showSizeChanger: true,
                 showTotal: (total) => `共 ${total} 条`,
                 style: { marginTop: 16 },
+                onChange: (page, size) => {
+                  setCurrentPage(page);
+                  setPageSize(size);
+                },
               }}
               scroll={{ x: 1200 }}
             />

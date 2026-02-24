@@ -73,6 +73,11 @@ const getServer = (serverId) => {
 };
 
 const getLogPath = () => {
+  if (process.env.NODE_ENV === 'development') {
+    const projectLogPath = path.join(__dirname, '../../data/logs');
+    console.log(`[getLogPath] Using development log path: ${projectLogPath}`);
+    return projectLogPath;
+  }
   return process.env.NGINX_LOG_PATH || '/var/log/nginx';
 };
 
@@ -306,6 +311,7 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
   try {
     let content = '';
     let totalLines = 0;
+    let stats = { total: 0, error: 0, warn: 0, info: 0 };
 
     if (server) {
       const logPath = server.nginx_log_path || '/var/log/nginx';
@@ -316,17 +322,52 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
       const linesToRead = keyword && keyword.trim() ? Math.min(totalLines, 10000) : lines * 2;
       const { output } = await executeRemoteCommand(server, `test -f ${errorLogPath} && tail -n ${linesToRead} ${errorLogPath}`);
       content = output;
+      
+      const { output: grepOutput } = await executeRemoteCommand(server, `grep -oE '\\[(error|warn|info|debug)\\]' ${errorLogPath} 2>/dev/null | sort | uniq -c`);
+      if (grepOutput) {
+        const grepLines = grepOutput.trim().split('\n');
+        grepLines.forEach(line => {
+          const match = line.trim().match(/^(\d+)\s+\[(\w+)\]/);
+          if (match) {
+            const count = parseInt(match[1]);
+            const level = match[2].toLowerCase();
+            stats.total += count;
+            if (level === 'error') {
+              stats.error += count;
+            } else if (level === 'warn') {
+              stats.warn += count;
+            } else if (level === 'info') {
+              stats.info += count;
+            }
+          }
+        });
+      }
     } else {
       const logPath = getLogPath();
       const errorLogPath = path.join(logPath, logFile);
 
       if (!fs.existsSync(errorLogPath)) {
-        return res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0 } });
+        return res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0, stats } });
       }
 
       content = fs.readFileSync(errorLogPath, 'utf-8');
       const logLines = content.split('\n').filter(line => line.trim());
       totalLines = logLines.length;
+      
+      logLines.forEach(line => {
+        const match = line.match(/\[(error|warn|info|debug)\]/i);
+        if (match) {
+          const level = match[1].toLowerCase();
+          stats.total++;
+          if (level === 'error') {
+            stats.error++;
+          } else if (level === 'warn') {
+            stats.warn++;
+          } else if (level === 'info') {
+            stats.info++;
+          }
+        }
+      });
     }
 
     const logLines = content.split('\n').filter(line => line.trim());
@@ -347,128 +388,104 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
         logs: lastLines.join('\n'),
         total: totalLines,
         filteredTotal: filteredLogs.length,
+        stats,
         filtered: true,
       }
     });
   } catch (error) {
     console.error('Error reading error log:', error);
-    res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0 } });
+    res.json({ 
+      success: true,
+      data: {
+        logs: '', 
+        total: 0, 
+        filteredTotal: 0,
+        stats: { total: 0, error: 0, warn: 0, info: 0 }
+      }
+    });
   }
 });
 
-router.get('/trend', requirePermission('log:read'), async (req, res) => {
+router.get('/traffic', requirePermission('log:read'), async (req, res) => {
   const { serverId } = req.query;
   const logFile = req.query.file || 'access.log';
   const server = getServer(serverId);
-
-  const minutes = 60;
+  
+  const hoursToAnalyze = parseInt(req.query.hours) || 24;
   const now = new Date();
-  const startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const startTime = new Date(now.getTime() - hoursToAnalyze * 60 * 60 * 1000);
 
   try {
     let content = '';
-    let totalLines = 0;
+    let totalBytes = 0;
+    let requestCount = 0;
 
     if (server) {
       const logPath = server.nginx_log_path || '/var/log/nginx';
       const accessLogPath = `${logPath}/${logFile}`;
-      const { output: totalOutput } = await executeRemoteCommand(server, `wc -l ${accessLogPath} 2>/dev/null || echo "0"`);
-      totalLines = parseInt(totalOutput.trim().split(' ')[0]) || 0;
-      
-      const linesToRead = Math.min(totalLines, 50000);
-      const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n ${linesToRead} ${accessLogPath}`);
+      const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n 100000 ${accessLogPath} 2>/dev/null || echo ""`);
       content = output;
     } else {
       const logPath = getLogPath();
       const accessLogPath = path.join(logPath, logFile);
-
-      if (!fs.existsSync(accessLogPath)) {
-        return res.json({ success: true, data: { trend: [], total: 0 } });
+      if (fs.existsSync(accessLogPath)) {
+        content = fs.readFileSync(accessLogPath, 'utf-8');
       }
-
-      content = fs.readFileSync(accessLogPath, 'utf-8');
-      const allLogLines = content.split('\n').filter(line => line.trim());
-      totalLines = allLogLines.length;
     }
 
-    const logLines = content.split('\n').filter(line => line.trim());
-    const trendData = {};
-
-    logLines.forEach(line => {
-      const match = line.match(/^\S+ \S+ \S+ \[([^\]]+)\]/);
-      if (match) {
-        const timeStr = match[1];
-        const time = parseLogTime(timeStr);
+    const logLines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+    
+    logLines.forEach((line) => {
+      const timeMatch = line.match(/\[([^\]]+)\]/);
+      if (timeMatch) {
+        const timeStr = timeMatch[1];
+        const time = parseLogDateTime(timeStr);
         
         if (time && time >= startTime) {
-          const bucketStart = new Date(Math.floor(time.getTime() / (minutes * 60 * 1000)) * (minutes * 60 * 1000));
-          const bucketKey = bucketStart.toISOString();
-          
-          if (!trendData[bucketKey]) {
-            trendData[bucketKey] = {
-              time: bucketKey,
-              count: 0,
-              success: 0,
-              error: 0,
-              redirect: 0,
-            };
-          }
-          
-          trendData[bucketKey].count++;
-          
-          const statusMatch = line.match(/" (\d{3})/);
-          if (statusMatch) {
-            const status = parseInt(statusMatch[1]);
-            if (status >= 200 && status < 300) {
-              trendData[bucketKey].success++;
-            } else if (status >= 300 && status < 400) {
-              trendData[bucketKey].redirect++;
-            } else if (status >= 400) {
-              trendData[bucketKey].error++;
+          requestCount++;
+          const bytesMatch = line.match(/ (\d{3}) (\d+|-)$/);
+          if (bytesMatch) {
+            const bytes = parseInt(bytesMatch[2]);
+            if (!isNaN(bytes)) {
+              totalBytes += bytes;
             }
           }
         }
       }
     });
 
-    const hourlyBuckets = [];
-    for (let i = 23; i >= 0; i--) {
-      const bucketTime = new Date(now.getTime() - i * 60 * 60 * 1000);
-      const bucketStart = new Date(
-        bucketTime.getFullYear(),
-        bucketTime.getMonth(),
-        bucketTime.getDate(),
-        bucketTime.getHours(),
-        0,
-        0,
-        0
-      );
-      const bucketKey = bucketStart.toISOString();
-      
-      hourlyBuckets.push({
-        time: bucketKey,
-        count: trendData[bucketKey]?.count || 0,
-        success: trendData[bucketKey]?.success || 0,
-        error: trendData[bucketKey]?.error || 0,
-        redirect: trendData[bucketKey]?.redirect || 0,
-      });
-    }
+    const avgBytes = requestCount > 0 ? Math.round(totalBytes / requestCount) : 0;
+    const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
+    const totalGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(2);
 
-    res.json({ 
+    res.json({
       success: true,
       data: {
-        trend: hourlyBuckets,
-        total: totalLines,
-        interval: minutes,
+        totalBytes,
+        totalMB: parseFloat(totalMB),
+        totalGB: parseFloat(totalGB),
+        requestCount,
+        avgBytes,
+        hoursToAnalyze,
       }
     });
   } catch (error) {
-    console.error('Error getting log trend:', error);
-    res.json({ success: true, data: { trend: [], total: 0, interval: minutes } });
+    console.error('[Traffic] Error:', error);
+    res.json({
+      success: true,
+      data: {
+        totalBytes: 0,
+        totalMB: 0,
+        totalGB: 0,
+        requestCount: 0,
+        avgBytes: 0,
+        hoursToAnalyze,
+      }
+    });
   }
 });
 
-const parseLogTime = (timeStr) => {
+function parseLogDateTime(timeStr) {
   const match = timeStr.match(/^(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})/);
   if (!match) return null;
 
@@ -479,11 +496,9 @@ const parseLogTime = (timeStr) => {
 
   const [, day, monthStr, year, hour, minute, second] = match;
   const month = months[monthStr];
-  
   if (month === undefined) return null;
 
-  const date = new Date(year, month, day, hour, minute, second);
-  return date;
-};
+  return new Date(year, month, day, hour, minute, second);
+}
 
 module.exports = router;

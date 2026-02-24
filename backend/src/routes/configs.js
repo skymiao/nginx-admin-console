@@ -472,20 +472,31 @@ router.post('/validate', requirePermission('config:write'), async (req, res) => 
       const tempIncludePath = `${configPath}/.temp_include.conf`;
       
       try {
-        await executeRemoteCommand(server, `cat > ${tempIncludePath} << 'EOF'\n${content}\nEOF`);
+        const hasEvents = content.includes('events');
+        const hasHttp = content.includes('http');
         
-        const baseConfig = `events {}
+        console.log(`[Config Validate] Remote server: ${server.name}, hasEvents: ${hasEvents}, hasHttp: ${hasHttp}`);
+        
+        let configToValidate;
+        if (hasEvents || hasHttp) {
+          configToValidate = content;
+        } else {
+          await executeRemoteCommand(server, `cat > ${tempIncludePath} << 'EOF'\n${content}\nEOF`);
+          const baseConfig = `events {}
 http {
     include ${tempIncludePath};
 }`;
+          configToValidate = baseConfig;
+        }
         
-        await executeRemoteCommand(server, `cat > ${tempConfigPath} << 'EOF'\n${baseConfig}\nEOF`);
+        await executeRemoteCommand(server, `cat > ${tempConfigPath} << 'EOF'\n${configToValidate}\nEOF`);
 
         const { output, error } = await executeRemoteCommand(server, `nginx -t -c ${tempConfigPath} 2>&1`);
         
         await executeRemoteCommand(server, `rm -f ${tempIncludePath} ${tempConfigPath}`);
         
         const combinedOutput = output + error;
+        console.log(`[Config Validate] Nginx test output: ${combinedOutput}`);
         
         if (combinedOutput.includes('successful') || combinedOutput.includes('syntax is ok')) {
           return res.json({ success: true, data: { valid: true } });
@@ -510,20 +521,35 @@ http {
     const tempIncludePath = path.join(configPath, '.temp_include.conf');
     
     try {
-      fs.writeFileSync(tempIncludePath, content, 'utf-8');
+      const hasEvents = content.includes('events');
+      const hasHttp = content.includes('http');
       
-      const baseConfig = `events {}
+      console.log(`[Config Validate] Local server, hasEvents: ${hasEvents}, hasHttp: ${hasHttp}`);
+      
+      let configToValidate;
+      if (hasEvents || hasHttp) {
+        configToValidate = content;
+      } else {
+        fs.writeFileSync(tempIncludePath, content, 'utf-8');
+        const baseConfig = `events {}
 http {
     include ${tempIncludePath};
 }`;
+        configToValidate = baseConfig;
+      }
       
-      fs.writeFileSync(tempConfigPath, baseConfig, 'utf-8');
+      fs.writeFileSync(tempConfigPath, configToValidate, 'utf-8');
 
       exec(`nginx -t -c ${tempConfigPath} 2>&1`, (error, stdout, stderr) => {
-        fs.unlinkSync(tempIncludePath);
-        fs.unlinkSync(tempConfigPath);
+        if (fs.existsSync(tempIncludePath)) {
+          fs.unlinkSync(tempIncludePath);
+        }
+        if (fs.existsSync(tempConfigPath)) {
+          fs.unlinkSync(tempConfigPath);
+        }
 
         const output = stdout + stderr;
+        console.log(`[Config Validate] Nginx test output: ${output}`);
         
         if (error) {
           return res.json({ success: true, data: { valid: false, error: output } });
@@ -536,6 +562,7 @@ http {
         res.json({ success: true, data: { valid: false, error: output || '配置验证失败' } });
       });
     } catch (error) {
+      console.error('Local config validate error:', error);
       if (fs.existsSync(tempIncludePath)) {
         fs.unlinkSync(tempIncludePath);
       }

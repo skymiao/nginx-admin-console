@@ -108,10 +108,11 @@ Thumbs.db
 *~
 
 # Documentation (optional - uncomment to exclude)
+code-docs/
+OPS_PLATFORM_UPGRADE_PLAN.md
 OPTIMIZATION_PLAN.md
-OPTIMIZATION_REPORT.md
 PROJECT_SKILLS.md
-OPTIMIZATION_COMPLETED.md
+POSTGRESQL_MIGRATION_PLAN.md
 
 # Trae IDE skills
 .trae/
