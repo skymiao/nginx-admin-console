@@ -75,6 +75,7 @@ export const logAPI = {
   getFiles: (serverId) => api.get('/logs/files', { params: { serverId } }),
   getAccessLog: (params) => api.get('/logs/access', { params }),
   getErrorLog: (params) => api.get('/logs/error', { params }),
+  getTraffic: (params) => api.get('/logs/traffic', { params }),
 };
 
 export const historyAPI = {

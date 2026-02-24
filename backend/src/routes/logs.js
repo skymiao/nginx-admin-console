@@ -406,4 +406,99 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
   }
 });
 
+router.get('/traffic', requirePermission('log:read'), async (req, res) => {
+  const { serverId } = req.query;
+  const logFile = req.query.file || 'access.log';
+  const server = getServer(serverId);
+  
+  const hoursToAnalyze = parseInt(req.query.hours) || 24;
+  const now = new Date();
+  const startTime = new Date(now.getTime() - hoursToAnalyze * 60 * 60 * 1000);
+
+  try {
+    let content = '';
+    let totalBytes = 0;
+    let requestCount = 0;
+
+    if (server) {
+      const logPath = server.nginx_log_path || '/var/log/nginx';
+      const accessLogPath = `${logPath}/${logFile}`;
+      const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n 100000 ${accessLogPath} 2>/dev/null || echo ""`);
+      content = output;
+    } else {
+      const logPath = getLogPath();
+      const accessLogPath = path.join(logPath, logFile);
+      if (fs.existsSync(accessLogPath)) {
+        content = fs.readFileSync(accessLogPath, 'utf-8');
+      }
+    }
+
+    const logLines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+    
+    logLines.forEach((line) => {
+      const timeMatch = line.match(/\[([^\]]+)\]/);
+      if (timeMatch) {
+        const timeStr = timeMatch[1];
+        const time = parseLogDateTime(timeStr);
+        
+        if (time && time >= startTime) {
+          requestCount++;
+          const bytesMatch = line.match(/ (\d{3}) (\d+|-)$/);
+          if (bytesMatch) {
+            const bytes = parseInt(bytesMatch[2]);
+            if (!isNaN(bytes)) {
+              totalBytes += bytes;
+            }
+          }
+        }
+      }
+    });
+
+    const avgBytes = requestCount > 0 ? Math.round(totalBytes / requestCount) : 0;
+    const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
+    const totalGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(2);
+
+    res.json({
+      success: true,
+      data: {
+        totalBytes,
+        totalMB: parseFloat(totalMB),
+        totalGB: parseFloat(totalGB),
+        requestCount,
+        avgBytes,
+        hoursToAnalyze,
+      }
+    });
+  } catch (error) {
+    console.error('[Traffic] Error:', error);
+    res.json({
+      success: true,
+      data: {
+        totalBytes: 0,
+        totalMB: 0,
+        totalGB: 0,
+        requestCount: 0,
+        avgBytes: 0,
+        hoursToAnalyze,
+      }
+    });
+  }
+});
+
+function parseLogDateTime(timeStr) {
+  const match = timeStr.match(/^(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})/);
+  if (!match) return null;
+
+  const months = {
+    Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+  };
+
+  const [, day, monthStr, year, hour, minute, second] = match;
+  const month = months[monthStr];
+  if (month === undefined) return null;
+
+  return new Date(year, month, day, hour, minute, second);
+}
+
 module.exports = router;

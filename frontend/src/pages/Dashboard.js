@@ -23,9 +23,7 @@ import {
   ClockCircleOutlined,
   ThunderboltOutlined,
   GlobalOutlined,
-  UserOutlined,
   DatabaseOutlined,
-  ArrowUpOutlined,
   ArrowDownOutlined,
   ArrowRightOutlined,
   ReloadOutlined,
@@ -52,6 +50,7 @@ const Dashboard = () => {
   const [logStats, setLogStats] = useState(null);
   const [serverStats, setServerStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [trafficStats, setTrafficStats] = useState(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -125,6 +124,7 @@ const Dashboard = () => {
         loadNginxStatus(selectedServer),
         loadLogStats(selectedServer),
         loadServerStats(selectedServer),
+        loadTrafficStats(selectedServer),
       ]);
     } catch (error) {
       console.error('Failed to load stats:', error);
@@ -260,7 +260,30 @@ const Dashboard = () => {
     }
   };
 
+  const loadTrafficStats = async (serverId) => {
+    try {
+      if (!serverId) {
+        setTrafficStats(null);
+        return;
+      }
+      const response = await logAPI.getTraffic({ file: 'access.log', serverId, hours: 24 });
+      const data = response.data?.data || response.data || {};
+      setTrafficStats(data);
+    } catch (error) {
+      console.error('Failed to load traffic stats:', error);
+      setTrafficStats(null);
+    }
+  };
+
   const renderStatusDistribution = () => {
+    const getStatusColor = (status) => {
+      if (status === 200) return '#10B981';
+      if (status === 300) return '#3B82F6';
+      if (status === 400) return '#F59E0B';
+      if (status === 500) return '#EF4444';
+      return '#6B7280';
+    };
+
     if (!logStats?.statusCodes) return null;
 
     const total = Object.values(logStats.statusCodes).reduce((a, b) => a + b, 0);
@@ -347,46 +370,63 @@ const Dashboard = () => {
         }
       />
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="配置文件总数"
-              value={configStats.totalConfigs}
-              prefix={<FileTextOutlined />}
-              valueStyle={{ color: '#3B82F6' }}
-            />
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} md={8}>
+          <Card 
+            hoverable 
+            style={{ 
+              borderRadius: 12,
+              background: nginxStatus.status === 'running' 
+                ? 'linear-gradient(135deg, #10B981 0%, #059669 100%)' 
+                : 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+              color: 'white'
+            }}
+          >
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <SafetyOutlined style={{ fontSize: 36, marginBottom: 8 }} />
+              <div style={{ fontSize: 28, fontWeight: 700 }}>
+                {nginxStatus.status === 'running' ? '运行中' : '已停止'}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.9 }}>Nginx 服务状态</div>
+            </div>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="启用配置"
-              value={configStats.activeConfigs}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#10B981' }}
-              suffix={`/ ${configStats.totalConfigs}`}
-            />
+        <Col xs={24} md={8}>
+          <Card 
+            hoverable 
+            style={{ 
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
+              color: 'white'
+            }}
+          >
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <ThunderboltOutlined style={{ fontSize: 36, marginBottom: 8 }} />
+              <div style={{ fontSize: 28, fontWeight: 700 }}>
+                {logStats?.totalRequests?.toLocaleString() || 0}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.9 }}>总请求数 (24h)</div>
+            </div>
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="总请求数"
-              value={logStats?.totalRequests || 0}
-              prefix={<ThunderboltOutlined />}
-              valueStyle={{ color: '#8B5CF6' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="独立访客"
-              value={logStats?.uniqueVisitors || 0}
-              prefix={<UserOutlined />}
-              valueStyle={{ color: '#F59E0B' }}
-            />
+        <Col xs={24} md={8}>
+          <Card 
+            hoverable 
+            style={{ 
+              borderRadius: 12,
+              background: parseFloat(logStats?.successRate || 0) >= 95
+                ? 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
+                : 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+              color: 'white'
+            }}
+          >
+            <div style={{ textAlign: 'center', padding: '8px 0' }}>
+              <CheckCircleOutlined style={{ fontSize: 36, marginBottom: 8 }} />
+              <div style={{ fontSize: 28, fontWeight: 700 }}>
+                {logStats?.successRate || 0}%
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.9 }}>请求成功率</div>
+            </div>
           </Card>
         </Col>
       </Row>
@@ -395,47 +435,44 @@ const Dashboard = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="成功率"
-              value={logStats?.successRate || 0}
-              suffix="%"
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{
-                color: parseFloat(logStats?.successRate || 0) >= 95 ? '#10B981' : '#F59E0B',
-              }}
+              title="配置文件"
+              value={configStats.totalConfigs}
+              prefix={<FileTextOutlined />}
+              valueStyle={{ color: '#3B82F6' }}
+              suffix={<span style={{ fontSize: 14, color: '#10B981' }}>/ {configStats.activeConfigs} 启用</span>}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="服务器数量"
+              title="服务器"
               value={serverStats?.totalServers || 0}
               prefix={<CloudServerOutlined />}
               valueStyle={{ color: '#6366F1' }}
-              suffix={`/ ${serverStats?.onlineServers || 0} 在线`}
+              suffix={<span style={{ fontSize: 14, color: '#10B981' }}>/ {serverStats?.onlineServers || 0} 在线</span>}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="近期变更"
+              title="总流量"
+              value={trafficStats?.totalGB > 1 ? trafficStats.totalGB : trafficStats?.totalMB || 0}
+              prefix={<GlobalOutlined />}
+              valueStyle={{ color: '#8B5CF6' }}
+              suffix={trafficStats?.totalGB > 1 ? 'GB' : 'MB'}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="周内变更"
               value={configStats.recentChanges}
               prefix={<ClockCircleOutlined />}
               valueStyle={{ color: '#EC4899' }}
-              suffix="周内"
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Nginx 状态"
-              value={nginxStatus.status === 'running' ? '运行中' : '已停止'}
-              prefix={<SafetyOutlined />}
-              valueStyle={{
-                color: nginxStatus.status === 'running' ? '#10B981' : '#EF4444',
-              }}
+              suffix="次"
             />
           </Card>
         </Col>
@@ -457,6 +494,59 @@ const Dashboard = () => {
             }
           >
             {renderStatusDistribution()}
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <Space>
+                <ThunderboltOutlined />
+                <span>流量统计</span>
+              </Space>
+            }
+            extra={
+              <Tag color="blue">
+                过去24小时
+              </Tag>
+            }
+          >
+            {trafficStats ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#6B7280' }}>总流量</div>
+                    <div style={{ fontSize: 24, fontWeight: 600, color: '#3B82F6' }}>
+                      {trafficStats.totalGB > 1 ? `${trafficStats.totalGB} GB` : `${trafficStats.totalMB} MB`}
+                    </div>
+                  </div>
+                  <ArrowRightOutlined style={{ color: '#9CA3AF', fontSize: 20 }} />
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 12, color: '#6B7280' }}>请求数</div>
+                    <div style={{ fontSize: 24, fontWeight: 600, color: '#8B5CF6' }}>
+                      {trafficStats.requestCount?.toLocaleString() || 0}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid #E5E7EB' }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: '#6B7280' }}>平均请求大小</div>
+                    <div style={{ fontSize: 16, fontWeight: 500, color: '#10B981' }}>
+                      {trafficStats.avgBytes ? `${(trafficStats.avgBytes / 1024).toFixed(2)} KB` : '0 KB'}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 12, color: '#6B7280' }}>峰值流量</div>
+                    <div style={{ fontSize: 16, fontWeight: 500, color: '#F59E0B' }}>
+                      {trafficStats.totalGB > 0 ? '~' : '0'} {(trafficStats.totalBytes / 3600 / 1024 / 1024).toFixed(2)} MB/s
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', color: '#9CA3AF', padding: '20px' }}>
+                暂无流量数据
+              </div>
+            )}
           </Card>
         </Col>
       </Row>
@@ -568,44 +658,6 @@ const Dashboard = () => {
           </Card>
         </Col>
       </Row>
-
-      <Card title="系统概览" style={{ marginTop: 16 }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={8}>
-            <div style={{ padding: 16, background: '#F3F4F6', borderRadius: 8 }}>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8 }}>配置管理</div>
-              <div style={{ fontSize: 24, fontWeight: 600, color: '#1F2937' }}>
-                {configStats.totalConfigs}
-              </div>
-              <div style={{ fontSize: 12, color: '#10B981', marginTop: 4 }}>
-                <ArrowUpOutlined /> {configStats.activeConfigs} 个启用
-              </div>
-            </div>
-          </Col>
-          <Col xs={24} md={8}>
-            <div style={{ padding: 16, background: '#F3F4F6', borderRadius: 8 }}>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8 }}>访问统计</div>
-              <div style={{ fontSize: 24, fontWeight: 600, color: '#1F2937' }}>
-                {logStats?.totalRequests || 0}
-              </div>
-              <div style={{ fontSize: 12, color: '#8B5CF6', marginTop: 4 }}>
-                <UserOutlined /> {logStats?.uniqueVisitors || 0} 独立访客
-              </div>
-            </div>
-          </Col>
-          <Col xs={24} md={8}>
-            <div style={{ padding: 16, background: '#F3F4F6', borderRadius: 8 }}>
-              <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 8 }}>服务器状态</div>
-              <div style={{ fontSize: 24, fontWeight: 600, color: '#1F2937' }}>
-                {serverStats?.totalServers || 0}
-              </div>
-              <div style={{ fontSize: 12, color: '#3B82F6', marginTop: 4 }}>
-                <CloudServerOutlined /> {serverStats?.onlineServers || 0} 在线
-              </div>
-            </div>
-          </Col>
-        </Row>
-      </Card>
     </div>
   );
 };
