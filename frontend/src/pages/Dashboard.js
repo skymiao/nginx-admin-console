@@ -52,8 +52,6 @@ const Dashboard = () => {
   const [logStats, setLogStats] = useState(null);
   const [serverStats, setServerStats] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
-  const [trendData, setTrendData] = useState([]);
-  const [trendLoading, setTrendLoading] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -64,7 +62,6 @@ const Dashboard = () => {
   useEffect(() => {
     if (selectedServer !== null && isAuthenticated) {
       loadAllStats();
-      loadTrendData();
     }
   }, [selectedServer, isAuthenticated]);
 
@@ -99,6 +96,25 @@ const Dashboard = () => {
   const loadAllStats = async () => {
     if (!selectedServer) {
       setLoading(false);
+      setConfigStats({
+        totalConfigs: 0,
+        activeConfigs: 0,
+        recentChanges: 0,
+      });
+      setNginxStatus({ status: 'unknown', uptime: 0 });
+      setLogStats({
+        totalRequests: 0,
+        uniqueVisitors: 0,
+        successRate: 0,
+        statusCodes: {},
+        methods: {},
+        hourlyData: {},
+      });
+      setServerStats({
+        totalServers: 0,
+        onlineServers: 0,
+      });
+      setRecentActivity([]);
       return;
     }
 
@@ -112,6 +128,25 @@ const Dashboard = () => {
       ]);
     } catch (error) {
       console.error('Failed to load stats:', error);
+      setConfigStats({
+        totalConfigs: 0,
+        activeConfigs: 0,
+        recentChanges: 0,
+      });
+      setNginxStatus({ status: 'unknown', uptime: 0 });
+      setLogStats({
+        totalRequests: 0,
+        uniqueVisitors: 0,
+        successRate: 0,
+        statusCodes: {},
+        methods: {},
+        hourlyData: {},
+      });
+      setServerStats({
+        totalServers: 0,
+        onlineServers: 0,
+      });
+      setRecentActivity([]);
     } finally {
       setLoading(false);
     }
@@ -223,99 +258,6 @@ const Dashboard = () => {
         onlineServers: 0,
       });
     }
-  };
-
-  const loadTrendData = async () => {
-    if (!selectedServer) {
-      setTrendData([]);
-      return;
-    }
-
-    try {
-      setTrendLoading(true);
-      const response = await logAPI.getTrend('access.log', selectedServer);
-      const data = response.data?.data || response.data || {};
-      setTrendData(data.trend || []);
-    } catch (error) {
-      console.error('Failed to load trend data:', error);
-      setTrendData([]);
-    } finally {
-      setTrendLoading(false);
-    }
-  };
-
-  const getStatusColor = (status) => {
-    if (status === 200) return '#10B981';
-    if (status === 300) return '#3B82F6';
-    if (status === 400) return '#F59E0B';
-    if (status === 500) return '#EF4444';
-    return '#6B7280';
-  };
-
-  const renderTrendChart = () => {
-    if (trendLoading) {
-      return (
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <Spin />
-        </div>
-      );
-    }
-
-    if (!trendData || trendData.length === 0) {
-      return (
-        <div style={{ textAlign: 'center', color: '#9CA3AF', padding: '40px 0' }}>
-          暂无数据
-        </div>
-      );
-    }
-
-    const maxRequests = Math.max(...trendData.map(d => d.count), 1);
-
-    return (
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 120 }}>
-        {trendData.map((data, index) => {
-          const height = (data.count / maxRequests) * 100;
-          const date = new Date(data.time);
-          const timeLabel = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-          const isCurrentHour = index === trendData.length - 1;
-          
-          return (
-            <div
-              key={index}
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-              }}
-            >
-              <div
-                style={{
-                  width: '100%',
-                  height: `${height}%`,
-                  background: isCurrentHour 
-                    ? 'linear-gradient(180deg, #10B981 0%, #059669 100%)'
-                    : 'linear-gradient(180deg, #3B82F6 0%, #2563EB 100%)',
-                  borderRadius: '4px 4px 0 0',
-                  minHeight: data.count > 0 ? 4 : 2,
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer',
-                }}
-                title={`${timeLabel} - ${data.count} 次请求`}
-              />
-              <span style={{ 
-                fontSize: 10, 
-                color: isCurrentHour ? '#10B981' : '#6B7280', 
-                marginTop: 4,
-                fontWeight: isCurrentHour ? 500 : 400,
-              }}>
-                {timeLabel}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    );
   };
 
   const renderStatusDistribution = () => {
@@ -500,27 +442,6 @@ const Dashboard = () => {
       </Row>
 
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} lg={12}>
-          <Card
-            title={
-              <Space>
-                <BarChartOutlined />
-                <span>24小时请求趋势</span>
-              </Space>
-            }
-            extra={
-              <Tag color="blue">
-                总计: {trendData.reduce((sum, d) => sum + d.count, 0)}
-              </Tag>
-            }
-          >
-            {renderTrendChart()}
-            <div style={{ marginTop: 16, textAlign: 'center', fontSize: 12, color: '#6B7280' }}>
-              过去24小时的请求分布（每小时统计）
-            </div>
-          </Card>
-        </Col>
-
         <Col xs={24} lg={12}>
           <Card
             title={

@@ -73,6 +73,11 @@ const getServer = (serverId) => {
 };
 
 const getLogPath = () => {
+  if (process.env.NODE_ENV === 'development') {
+    const projectLogPath = path.join(__dirname, '../../data/logs');
+    console.log(`[getLogPath] Using development log path: ${projectLogPath}`);
+    return projectLogPath;
+  }
   return process.env.NGINX_LOG_PATH || '/var/log/nginx';
 };
 
@@ -400,135 +405,5 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
     });
   }
 });
-
-router.get('/trend', requirePermission('log:read'), async (req, res) => {
-  const { serverId } = req.query;
-  const logFile = req.query.file || 'access.log';
-  const server = getServer(serverId);
-
-  const minutes = 60;
-  const now = new Date();
-  const startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-  try {
-    let content = '';
-    let totalLines = 0;
-
-    if (server) {
-      const logPath = server.nginx_log_path || '/var/log/nginx';
-      const accessLogPath = `${logPath}/${logFile}`;
-      const { output: totalOutput } = await executeRemoteCommand(server, `wc -l ${accessLogPath} 2>/dev/null || echo "0"`);
-      totalLines = parseInt(totalOutput.trim().split(' ')[0]) || 0;
-      
-      const linesToRead = Math.min(totalLines, 50000);
-      const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n ${linesToRead} ${accessLogPath}`);
-      content = output;
-    } else {
-      const logPath = getLogPath();
-      const accessLogPath = path.join(logPath, logFile);
-
-      if (!fs.existsSync(accessLogPath)) {
-        return res.json({ success: true, data: { trend: [], total: 0 } });
-      }
-
-      content = fs.readFileSync(accessLogPath, 'utf-8');
-      const allLogLines = content.split('\n').filter(line => line.trim());
-      totalLines = allLogLines.length;
-    }
-
-    const logLines = content.split('\n').filter(line => line.trim());
-    const trendData = {};
-
-    logLines.forEach(line => {
-      const match = line.match(/^\S+ \S+ \S+ \[([^\]]+)\]/);
-      if (match) {
-        const timeStr = match[1];
-        const time = parseLogTime(timeStr);
-        
-        if (time && time >= startTime) {
-          const bucketStart = new Date(Math.floor(time.getTime() / (minutes * 60 * 1000)) * (minutes * 60 * 1000));
-          const bucketKey = bucketStart.toISOString();
-          
-          if (!trendData[bucketKey]) {
-            trendData[bucketKey] = {
-              time: bucketKey,
-              count: 0,
-              success: 0,
-              error: 0,
-              redirect: 0,
-            };
-          }
-          
-          trendData[bucketKey].count++;
-          
-          const statusMatch = line.match(/" (\d{3})/);
-          if (statusMatch) {
-            const status = parseInt(statusMatch[1]);
-            if (status >= 200 && status < 300) {
-              trendData[bucketKey].success++;
-            } else if (status >= 300 && status < 400) {
-              trendData[bucketKey].redirect++;
-            } else if (status >= 400) {
-              trendData[bucketKey].error++;
-            }
-          }
-        }
-      }
-    });
-
-    const hourlyBuckets = [];
-    for (let i = 23; i >= 0; i--) {
-      const bucketTime = new Date(now.getTime() - i * 60 * 60 * 1000);
-      const bucketStart = new Date(
-        bucketTime.getFullYear(),
-        bucketTime.getMonth(),
-        bucketTime.getDate(),
-        bucketTime.getHours(),
-        0,
-        0,
-        0
-      );
-      const bucketKey = bucketStart.toISOString();
-      
-      hourlyBuckets.push({
-        time: bucketKey,
-        count: trendData[bucketKey]?.count || 0,
-        success: trendData[bucketKey]?.success || 0,
-        error: trendData[bucketKey]?.error || 0,
-        redirect: trendData[bucketKey]?.redirect || 0,
-      });
-    }
-
-    res.json({ 
-      success: true,
-      data: {
-        trend: hourlyBuckets,
-        total: totalLines,
-        interval: minutes,
-      }
-    });
-  } catch (error) {
-    console.error('Error getting log trend:', error);
-    res.json({ success: true, data: { trend: [], total: 0, interval: minutes } });
-  }
-});
-
-const parseLogTime = (timeStr) => {
-  const match = timeStr.match(/^(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})/);
-  if (!match) return null;
-
-  const months = {
-    Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
-    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
-  };
-
-  const [, day, monthStr, year, hour, minute, second] = match;
-  const month = months[monthStr];
-  
-  if (month === undefined) return null;
-
-  const date = new Date(year, month, day, hour, minute, second);
-  return date;
-};
 
 module.exports = router;
