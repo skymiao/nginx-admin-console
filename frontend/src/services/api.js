@@ -117,4 +117,13 @@ export const serverAPI = {
   getServers: () => api.get('/servers'),
 };
 
+export const logFormatAPI = {
+  list: (params) => api.get('/log-formats', { params }),
+  get: (id) => api.get(`/log-formats/${id}`),
+  create: (data) => api.post('/log-formats', data),
+  update: (id, data) => api.put(`/log-formats/${id}`, data),
+  delete: (id) => api.delete(`/log-formats/${id}`),
+  test: (data) => api.post('/log-formats/test', data),
+};
+
 export default api;

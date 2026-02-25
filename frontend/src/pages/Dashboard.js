@@ -262,10 +262,6 @@ const Dashboard = () => {
 
   const loadTrafficStats = async (serverId) => {
     try {
-      if (!serverId) {
-        setTrafficStats(null);
-        return;
-      }
       const response = await logAPI.getTraffic({ file: 'access.log', serverId, hours: 24 });
       const data = response.data?.data || response.data || {};
       setTrafficStats(data);

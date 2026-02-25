@@ -415,6 +415,9 @@ router.get('/traffic', requirePermission('log:read'), async (req, res) => {
   const now = new Date();
   const startTime = new Date(now.getTime() - hoursToAnalyze * 60 * 60 * 1000);
 
+  console.log('[Traffic] Request params:', { serverId, logFile, hoursToAnalyze, startTime });
+  console.log('[Traffic] Server:', server ? `${server.name} (${server.host})` : 'null (using local logs)');
+
   try {
     let content = '';
     let totalBytes = 0;
@@ -423,36 +426,43 @@ router.get('/traffic', requirePermission('log:read'), async (req, res) => {
     if (server) {
       const logPath = server.nginx_log_path || '/var/log/nginx';
       const accessLogPath = `${logPath}/${logFile}`;
+      console.log('[Traffic] Remote log path:', accessLogPath);
       const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n 100000 ${accessLogPath} 2>/dev/null || echo ""`);
       content = output;
     } else {
       const logPath = getLogPath();
       const accessLogPath = path.join(logPath, logFile);
+      console.log('[Traffic] Local log path:', accessLogPath);
+      console.log('[Traffic] Log file exists:', fs.existsSync(accessLogPath));
       if (fs.existsSync(accessLogPath)) {
         content = fs.readFileSync(accessLogPath, 'utf-8');
+        console.log('[Traffic] Log content length:', content.length);
       }
     }
 
     const logLines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+    console.log('[Traffic] Total log lines (filtered):', logLines.length);
     
     logLines.forEach((line) => {
-      const timeMatch = line.match(/\[([^\]]+)\]/);
-      if (timeMatch) {
-        const timeStr = timeMatch[1];
+      const regex = /^(\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) (\S+)" (\d+) (\d+)(?: "([^"]*)"(?: "([^"]*)")?)?/;
+      const match = line.match(regex);
+      
+      if (match) {
+        const timeStr = match[2];
         const time = parseLogDateTime(timeStr);
         
         if (time && time >= startTime) {
           requestCount++;
-          const bytesMatch = line.match(/ (\d{3}) (\d+|-)$/);
-          if (bytesMatch) {
-            const bytes = parseInt(bytesMatch[2]);
-            if (!isNaN(bytes)) {
-              totalBytes += bytes;
-            }
+          
+          const bytes = parseInt(match[7]);
+          if (!isNaN(bytes)) {
+            totalBytes += bytes;
           }
         }
       }
     });
+
+    console.log('[Traffic] Results:', { requestCount, totalBytes });
 
     const avgBytes = requestCount > 0 ? Math.round(totalBytes / requestCount) : 0;
     const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
@@ -486,7 +496,7 @@ router.get('/traffic', requirePermission('log:read'), async (req, res) => {
 });
 
 function parseLogDateTime(timeStr) {
-  const match = timeStr.match(/^(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})/);
+  const match = timeStr.match(/^(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2})(?: ([+-]\d{4}))?/);
   if (!match) return null;
 
   const months = {
@@ -494,11 +504,24 @@ function parseLogDateTime(timeStr) {
     Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
   };
 
-  const [, day, monthStr, year, hour, minute, second] = match;
+  const [, day, monthStr, year, hour, minute, second, timezone] = match;
   const month = months[monthStr];
   if (month === undefined) return null;
 
-  return new Date(year, month, day, hour, minute, second);
+  const date = new Date(year, month, day, hour, minute, second);
+  
+  if (timezone) {
+    const tzMatch = timezone.match(/([+-])(\d{2})(\d{2})/);
+    if (tzMatch) {
+      const sign = tzMatch[1] === '+' ? -1 : 1;
+      const tzHours = parseInt(tzMatch[2]);
+      const tzMinutes = parseInt(tzMatch[3]);
+      date.setHours(date.getHours() + sign * tzHours);
+      date.setMinutes(date.getMinutes() + sign * tzMinutes);
+    }
+  }
+  
+  return date;
 }
 
 module.exports = router;

@@ -83,7 +83,7 @@ const parseAccessLog = (logContent) => {
   };
 
   lines.forEach(line => {
-    const regex = /^(\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) (\S+)" (\d+) (\d+) "([^"]*)" "([^"]*)"/;
+    const regex = /^(\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) (\S+)" (\d+) (\d+)(?: "([^"]*)"(?: "([^"]*)")?)?/;
     const match = line.match(regex);
     
     if (match) {
@@ -111,8 +111,8 @@ const parseAccessLog = (logContent) => {
         protocol: match[5],
         status: parseInt(match[6]),
         size: parseInt(match[7]) || 0,
-        referer: match[8],
-        userAgent: match[9],
+        referer: match[8] || '-',
+        userAgent: match[9] || '-',
       });
     }
   });

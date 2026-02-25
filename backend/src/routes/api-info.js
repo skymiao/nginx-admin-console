@@ -513,6 +513,59 @@ const apiEndpoints = [
     ]
   },
   {
+    category: '日志格式管理',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/log-formats',
+        description: '获取日志格式列表',
+        requiresAuth: true,
+        permission: 'setting:read',
+        rateLimit: '100次/15分钟'
+      },
+      {
+        method: 'GET',
+        path: '/api/log-formats/:id',
+        description: '获取日志格式详情',
+        requiresAuth: true,
+        permission: 'setting:read',
+        rateLimit: '100次/15分钟'
+      },
+      {
+        method: 'POST',
+        path: '/api/log-formats',
+        description: '创建日志格式',
+        requiresAuth: true,
+        permission: 'setting:manage',
+        rateLimit: '100次/15分钟'
+      },
+      {
+        method: 'PUT',
+        path: '/api/log-formats/:id',
+        description: '更新日志格式',
+        requiresAuth: true,
+        permission: 'setting:manage',
+        rateLimit: '100次/15分钟'
+      },
+      {
+        method: 'DELETE',
+        path: '/api/log-formats/:id',
+        description: '删除日志格式',
+        requiresAuth: true,
+        permission: 'setting:manage',
+        rateLimit: '100次/15分钟'
+      },
+      {
+        method: 'POST',
+        path: '/api/log-formats/test',
+        description: '测试日志格式',
+        requiresAuth: true,
+        permission: 'setting:read',
+        rateLimit: '100次/15分钟'
+      }
+    ]
+  },
+  {
     category: '系统',
     endpoints: [
       {

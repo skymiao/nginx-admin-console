@@ -14,6 +14,7 @@ import Settings from './pages/Settings';
 import Upstreams from './pages/Upstreams';
 import Servers from './pages/Servers';
 import Stats from './pages/Stats';
+import LogFormats from './pages/LogFormats';
 import Profile from './pages/Profile';
 import Health from './pages/Health';
 import { AuthProvider, useAuth } from './utils/auth';
@@ -64,6 +65,7 @@ function App() {
             <Route path="settings" element={<Settings />} />
             <Route path="upstreams" element={<Upstreams />} />
             <Route path="servers" element={<Servers />} />
+            <Route path="log-formats" element={<LogFormats />} />
             <Route path="stats" element={<Stats />} />
             <Route path="profile" element={<Profile />} />
           </Route>

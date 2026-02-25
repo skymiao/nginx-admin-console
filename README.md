@@ -87,6 +87,21 @@
 
 - **系统设置**: 配置 Nginx 路径、日志路径、nginx_status_url 等系统参数
 
+- **日志格式管理**: 管理多种日志格式解析规则
+  - 支持预设日志格式（Nginx Default、Combined、Common、JSON、Custom App）
+  - 自定义日志格式（正则表达式、字段映射）
+  - 格式测试功能
+  - 支持绑定多个服务器IP
+  - 格式启用/禁用管理
+
+- **健康检查**: 系统健康状态和API接口监控
+  - 系统健康状态检查
+  - API接口状态检查
+  - 接口认证要求和权限显示
+  - 接口限流配置显示
+  - 批量接口检查
+  - 自动刷新（每30秒）
+
 ### UI/UX 设计
 - 基于 UI UX Pro Max 设计系统
 - 响应式布局，支持移动端
@@ -260,6 +275,7 @@ nginx-admin-console/
 │   │   │   ├── ConfigFiles.js      # 配置文件管理
 │   │   │   ├── Logs.js            # 日志查看
 │   │   │   ├── LogStatistics.js   # 日志统计
+│   │   │   ├── LogFormats.js      # 日志格式管理
 │   │   │   ├── Upstreams.js       # Upstream 管理
 │   │   │   ├── Servers.js         # 服务器管理
 │   │   │   ├── Stats.js           # 性能统计
@@ -267,6 +283,7 @@ nginx-admin-console/
 │   │   │   ├── Roles.js           # 角色管理
 │   │   │   ├── History.js         # 历史记录
 │   │   │   ├── Settings.js        # 系统设置
+│   │   │   ├── Health.js          # 健康检查
 │   │   │   ├── Dashboard.js       # 仪表盘
 │   │   │   └── Login.js          # 登录页面
 │   │   ├── services/        # API 服务
@@ -393,6 +410,18 @@ nginx-admin-console/
 - `POST /api/nginx/validate` - 验证配置
 - `GET /api/nginx/status` - 获取 Nginx 状态
 
+### 日志格式管理
+- `GET /api/log-formats` - 获取日志格式列表
+- `GET /api/log-formats/:id` - 获取日志格式详情
+- `POST /api/log-formats` - 创建日志格式
+- `PUT /api/log-formats/:id` - 更新日志格式
+- `DELETE /api/log-formats/:id` - 删除日志格式
+- `POST /api/log-formats/test` - 测试日志格式
+
+### 健康检查
+- `GET /health` - 系统健康检查
+- `GET /api/endpoints` - 获取API接口清单
+
 ## 权限说明
 
 系统预定义了以下角色和权限：
@@ -406,6 +435,7 @@ nginx-admin-console/
 - upstream:read - 查看 Upstream
 - upstream:manage - 管理 Upstream
 - log:read - 查看日志
+- log:statistics - 日志统计
 - history:read - 查看历史
 - history:restore - 恢复历史
 - stats:read - 查看统计
@@ -414,6 +444,8 @@ nginx-admin-console/
 - server:read - 查看服务器
 - server:manage - 管理服务器
 - system:manage - 系统设置
+- setting:read - 读取系统设置
+- setting:manage - 管理系统设置
 
 ### 开发者 (developer)
 - config:read - 查看配置
@@ -422,17 +454,21 @@ nginx-admin-console/
 - upstream:read - 查看 Upstream
 - upstream:manage - 管理 Upstream
 - log:read - 查看日志
+- log:statistics - 日志统计
 - history:read - 查看历史
 - stats:read - 查看统计
 - server:read - 查看服务器
+- setting:read - 读取系统设置
 
 ### 查看者 (viewer)
 - config:read - 查看配置
 - upstream:read - 查看 Upstream
 - log:read - 查看日志
+- log:statistics - 日志统计
 - history:read - 查看历史
 - stats:read - 查看统计
 - server:read - 查看服务器
+- setting:read - 读取系统设置
 
 ## 使用指南
 

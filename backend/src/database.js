@@ -103,10 +103,12 @@ const initDatabase = () => {
         permissions: JSON.stringify([
           'config:read', 'config:write', 'config:delete', 'config:apply',
           'upstream:read', 'upstream:manage',
-          'log:read', 'history:read', 'history:restore', 'stats:read',
+          'log:read', 'log:statistics',
+          'history:read', 'history:restore', 'stats:read',
           'user:manage', 'role:manage',
           'server:read', 'server:manage',
-          'system:manage'
+          'system:manage',
+          'setting:read', 'setting:manage'
         ])
       },
       {
@@ -115,8 +117,10 @@ const initDatabase = () => {
         permissions: JSON.stringify([
           'config:read', 'config:write', 'config:apply',
           'upstream:read', 'upstream:manage',
-          'log:read', 'history:read', 'stats:read',
-          'server:read'
+          'log:read', 'log:statistics',
+          'history:read', 'stats:read',
+          'server:read',
+          'setting:read'
         ])
       },
       {
@@ -125,8 +129,10 @@ const initDatabase = () => {
         permissions: JSON.stringify([
           'config:read',
           'upstream:read',
-          'log:read', 'history:read', 'stats:read',
-          'server:read'
+          'log:read', 'log:statistics',
+          'history:read', 'stats:read',
+          'server:read',
+          'setting:read'
         ])
       }
     ];

@@ -410,6 +410,11 @@ const Servers = () => {
               {
                 validator: (_, value) => {
                   if (!value) return Promise.resolve();
+                  
+                  if (value === 'localhost' || value === '127.0.0.1') {
+                    return Promise.resolve();
+                  }
+                  
                   const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
                   const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
                   if (ipRegex.test(value) || domainRegex.test(value)) {

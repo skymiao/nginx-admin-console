@@ -14,6 +14,9 @@ const { updateDefaultServerStatusUrl } = require('./migrations/updateDefaultServ
 const { updateRolePermissions: updateRolePermissions2 } = require('./migrations/updateRolePermissions2');
 const addIndexes = require('./migrations/addIndexes');
 const { addIsLocalColumn } = require('./migrations/addIsLocalField');
+const { createServerLogFormatsTable, insertDefaultFormats } = require('./migrations/createServerLogFormats');
+const { migrate: addSettingPermissions } = require('./migrations/addSettingPermissions');
+const { migrate: fixLogFormatsDuplicates } = require('./migrations/fixLogFormatsDuplicates');
 const { errorHandler } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 
@@ -32,6 +35,10 @@ updateDefaultServerStatusUrl();
 updateRolePermissions2();
 addIndexes();
 addIsLocalColumn();
+createServerLogFormatsTable();
+insertDefaultFormats();
+fixLogFormatsDuplicates();
+addSettingPermissions();
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -93,6 +100,7 @@ app.use('/api/logs', require('./routes/logs'));
 app.use('/api/log-statistics', require('./routes/log-statistics'));
 app.use('/api/history', require('./routes/history'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/log-formats', require('./routes/log-formats'));
 app.use('/api/nginx', require('./routes/nginx'));
 app.use('/api/upstreams', require('./routes/upstreams'));
 app.use('/api/servers', require('./routes/servers'));

@@ -19,6 +19,7 @@ import {
   BellOutlined,
   ThunderboltOutlined,
   BarChartOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../utils/auth';
 
@@ -61,6 +62,12 @@ const Layout = ({ isDarkMode, setIsDarkMode }) => {
       icon: <CloudServerOutlined />,
       label: '服务器管理',
       requiredPermission: 'server:read',
+    },
+    {
+      key: '/log-formats',
+      icon: <SettingOutlined />,
+      label: '日志格式',
+      requiredPermission: 'setting:read',
     },
     {
       key: '/stats',
