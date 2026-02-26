@@ -87,8 +87,9 @@ router.post('/test-connection', requirePermission('server:manage'), async (req, 
       host,
       port: port || 22,
       username,
-      readyTimeout: 15000,
-      keepaliveInterval: 0,
+      readyTimeout: 60000,
+      connectTimeout: 60000,
+      keepaliveInterval: 30000,
     };
 
     if (password) {
@@ -170,7 +171,9 @@ router.post('/execute-command', requirePermission('server:manage'), async (req, 
       host: server.host,
       port: server.port || 22,
       username: server.username,
-      readyTimeout: 10000,
+      readyTimeout: 60000,
+      connectTimeout: 60000,
+      keepaliveInterval: 30000,
     };
 
     if (server.password) {
@@ -284,7 +287,9 @@ router.post('/reload-nginx', requirePermission('server:manage'), async (req, res
       host: server.host,
       port: server.port || 22,
       username: server.username,
-      readyTimeout: 10000,
+      readyTimeout: 60000,
+      connectTimeout: 60000,
+      keepaliveInterval: 30000,
     };
 
     if (server.password) {
@@ -370,7 +375,9 @@ router.get('/nginx-status', requirePermission('server:read'), async (req, res) =
       host: server.host,
       port: server.port || 22,
       username: server.username,
-      readyTimeout: 10000,
+      readyTimeout: 60000,
+      connectTimeout: 60000,
+      keepaliveInterval: 30000,
     };
 
     if (server.password) {

@@ -16,6 +16,7 @@ const executeRemoteCommand = (server, command) => {
     
     let output = '';
     let error = '';
+    let commandTimeout;
 
     conn.on('ready', () => {
       conn.exec(command, (err, stream) => {
@@ -33,6 +34,9 @@ const executeRemoteCommand = (server, command) => {
         });
 
         stream.on('close', (code) => {
+          if (commandTimeout) {
+            clearTimeout(commandTimeout);
+          }
           conn.end();
           if (code !== 0) {
             reject(new Error(error || output));
@@ -44,6 +48,9 @@ const executeRemoteCommand = (server, command) => {
     });
 
     conn.on('error', (err) => {
+      if (commandTimeout) {
+        clearTimeout(commandTimeout);
+      }
       reject(err);
     });
 
@@ -51,7 +58,9 @@ const executeRemoteCommand = (server, command) => {
       host: server.host,
       port: server.port || 22,
       username: server.username,
-      readyTimeout: 10000,
+      readyTimeout: 60000,
+      connectTimeout: 60000,
+      keepaliveInterval: 30000,
     };
 
     if (server.password) {
@@ -59,6 +68,11 @@ const executeRemoteCommand = (server, command) => {
     } else if (server.private_key) {
       config.privateKey = server.private_key;
     }
+
+    commandTimeout = setTimeout(() => {
+      conn.end();
+      reject(new Error('Command execution timeout'));
+    }, 120000);
 
     conn.connect(config);
   });

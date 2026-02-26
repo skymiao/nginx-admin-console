@@ -51,7 +51,9 @@ const executeRemoteCommand = (server, command) => {
       host: server.host,
       port: server.port || 22,
       username: server.username,
-      readyTimeout: 10000,
+      readyTimeout: 60000,
+      connectTimeout: 60000,
+      keepaliveInterval: 30000,
     };
 
     if (server.password) {
