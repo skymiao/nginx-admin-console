@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Form, Input, Button, Card, message, Typography } from 'antd';
-import { UserOutlined, LockOutlined, CloudServerOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, message, Typography, Modal, Alert } from 'antd';
+import { UserOutlined, LockOutlined, CloudServerOutlined, ExclamationCircleOutlined, CloseCircleOutlined, LockTwoTone, UserDeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../utils/auth';
 
@@ -8,9 +8,18 @@ const { Title } = Typography;
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
+  const [errorModal, setErrorModal] = useState({ visible: false, type: '', title: '', message: '' });
   const navigate = useNavigate();
   const { login } = useAuth();
   const [form] = Form.useForm();
+
+  const showErrorModal = (type, title, message) => {
+    setErrorModal({ visible: true, type, title, message });
+  };
+
+  const handleOk = () => {
+    setErrorModal({ visible: false, type: '', title: '', message: '' });
+  };
 
   const handleSubmit = async (values) => {
     setLoading(true);
@@ -20,12 +29,98 @@ const Login = () => {
         message.success('登录成功');
         navigate('/dashboard');
       } else {
-        message.error(result.message);
+        const errorMsg = result.message || '登录失败';
+        
+        if (errorMsg.includes('用户名或密码错误')) {
+          showErrorModal(
+            'auth_error',
+            '登录失败',
+            '用户名或密码错误，请检查后重试'
+          );
+        } else if (errorMsg.includes('账户已被禁用')) {
+          showErrorModal(
+            'account_disabled',
+            '账户已被禁用',
+            '您的账户已被管理员禁用，请联系管理员重新启用'
+          );
+        } else if (errorMsg.includes('账户已被锁定')) {
+          showErrorModal(
+            'account_locked',
+            '账户已被锁定',
+            '由于多次登录失败，您的账户已被临时锁定，请稍后再试'
+          );
+        } else if (errorMsg.includes('网络错误') || errorMsg.includes('连接失败')) {
+          showErrorModal(
+            'network_error',
+            '网络连接失败',
+            '无法连接到服务器，请检查网络连接后重试'
+          );
+        } else {
+          showErrorModal(
+            'unknown_error',
+            '登录失败',
+            errorMsg || '登录过程中发生未知错误，请稍后重试'
+          );
+        }
       }
     } catch (error) {
-      message.error('登录失败，请稍后重试');
+      console.error('Login error:', error);
+      
+      if (error.message && error.message.includes('Network Error')) {
+        showErrorModal(
+          'network_error',
+          '网络连接失败',
+          '无法连接到服务器，请检查网络连接后重试'
+        );
+      } else if (error.code === 'ECONNABORTED') {
+        showErrorModal(
+          'timeout_error',
+          '请求超时',
+          '服务器响应超时，请稍后重试'
+        );
+      } else {
+        showErrorModal(
+          'unknown_error',
+          '登录失败',
+          '登录过程中发生未知错误，请稍后重试'
+        );
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getErrorIcon = (type) => {
+    switch (type) {
+      case 'auth_error':
+        return <CloseCircleOutlined style={{ fontSize: 48, color: '#FF4D4F' }} />;
+      case 'account_disabled':
+        return <LockTwoTone style={{ fontSize: 48, color: '#FAAD14' }} />;
+      case 'account_locked':
+        return <LockTwoTone style={{ fontSize: 48, color: '#FAAD14' }} />;
+      case 'network_error':
+        return <ExclamationCircleOutlined style={{ fontSize: 48, color: '#FAAD14' }} />;
+      case 'timeout_error':
+        return <ExclamationCircleOutlined style={{ fontSize: 48, color: '#FAAD14' }} />;
+      default:
+        return <ExclamationCircleOutlined style={{ fontSize: 48, color: '#FF4D4F' }} />;
+    }
+  };
+
+  const getErrorColor = (type) => {
+    switch (type) {
+      case 'auth_error':
+        return '#FF4D4F';
+      case 'account_disabled':
+        return '#FAAD14';
+      case 'account_locked':
+        return '#FAAD14';
+      case 'network_error':
+        return '#FAAD14';
+      case 'timeout_error':
+        return '#FAAD14';
+      default:
+        return '#FF4D4F';
     }
   };
 
@@ -167,6 +262,68 @@ const Login = () => {
           </p>
         </div>
       </Card>
+      
+      <Modal
+        title={null}
+        open={errorModal.visible}
+        onOk={handleOk}
+        onCancel={handleOk}
+        footer={[
+          <Button key="ok" type="primary" onClick={handleOk} size="large" block style={{ borderRadius: '8px' }}>
+            我知道了
+          </Button>,
+        ]}
+        centered
+        width={400}
+        style={{ borderRadius: '16px' }}
+        bodyStyle={{ padding: '32px 24px', textAlign: 'center' }}
+      >
+        <div style={{ marginBottom: 24 }}>
+          {getErrorIcon(errorModal.type)}
+        </div>
+        <Title level={4} style={{ marginBottom: 12, color: getErrorColor(errorModal.type) }}>
+          {errorModal.title}
+        </Title>
+        <p style={{ color: '#64748B', fontSize: 15, lineHeight: 1.6, margin: 0 }}>
+          {errorModal.message}
+        </p>
+        {errorModal.type === 'auth_error' && (
+          <Alert
+            message="提示"
+            description="请检查用户名和密码是否正确，注意大小写"
+            type="info"
+            showIcon
+            style={{ marginTop: 20, borderRadius: '8px', textAlign: 'left' }}
+          />
+        )}
+        {errorModal.type === 'account_disabled' && (
+          <Alert
+            message="联系管理员"
+            description="如需重新启用账户，请联系系统管理员"
+            type="warning"
+            showIcon
+            style={{ marginTop: 20, borderRadius: '8px', textAlign: 'left' }}
+          />
+        )}
+        {errorModal.type === 'account_locked' && (
+          <Alert
+            message="稍后重试"
+            description="账户将在一段时间后自动解锁，请稍后再试"
+            type="warning"
+            showIcon
+            style={{ marginTop: 20, borderRadius: '8px', textAlign: 'left' }}
+          />
+        )}
+        {(errorModal.type === 'network_error' || errorModal.type === 'timeout_error') && (
+          <Alert
+            message="检查网络"
+            description="请确保网络连接正常，服务器地址正确"
+            type="warning"
+            showIcon
+            style={{ marginTop: 20, borderRadius: '8px', textAlign: 'left' }}
+          />
+        )}
+      </Modal>
     </div>
   );
 };

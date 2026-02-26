@@ -1,5 +1,13 @@
 const errorHandler = (err, req, res, next) => {
-  console.error('Error:', err);
+  console.error('[ErrorHandler] Error occurred:', {
+    name: err.name,
+    message: err.message,
+    statusCode: err.statusCode,
+    code: err.code,
+    path: req.path,
+    method: req.method,
+    ip: req.ip,
+  });
 
   if (err.name === 'ZodError') {
     return res.status(400).json({
@@ -27,9 +35,17 @@ const errorHandler = (err, req, res, next) => {
   }
 
   if (err.code && err.code.startsWith('SQLITE_')) {
+    console.error('[ErrorHandler] Database error:', err.code, err.message);
     return res.status(500).json({
       success: false,
-      message: '数据库错误',
+      message: '数据库错误，请稍后重试',
+    });
+  }
+
+  if (err.code === 'ECONNREFUSED') {
+    return res.status(503).json({
+      success: false,
+      message: '无法连接到数据库，请检查数据库服务是否正常运行',
     });
   }
 
@@ -43,7 +59,7 @@ const errorHandler = (err, req, res, next) => {
 
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || '服务器内部错误',
+    message: err.message || '服务器内部错误，请稍后重试',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 };

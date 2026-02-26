@@ -12,24 +12,24 @@ const router = express.Router();
 router.post('/login', authLimiter, validate(loginSchema), (req, res, next) => {
   const { username, password } = req.body;
 
-  console.log('Login attempt for username:', username);
+  console.log(`[Login] Attempt for username: ${username}, IP: ${req.ip}`);
 
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
 
   if (!user) {
-    console.log('User not found:', username);
+    console.log(`[Login] User not found: ${username}`);
     throw new UnauthorizedError('用户名或密码错误');
   }
 
-  console.log('User found:', user.username, 'Status:', user.status);
+  console.log(`[Login] User found: ${user.username}, Status: ${user.status}, Last login: ${user.last_login_at}`);
 
   if (!bcrypt.compareSync(password, user.password)) {
-    console.log('Password comparison failed');
+    console.log(`[Login] Password comparison failed for user: ${username}`);
     throw new UnauthorizedError('用户名或密码错误');
   }
 
   if (user.status !== 1) {
-    console.log('User is disabled');
+    console.log(`[Login] User is disabled: ${username}, Status: ${user.status}`);
     throw new ForbiddenError('账户已被禁用');
   }
 
@@ -38,9 +38,10 @@ router.post('/login', authLimiter, validate(loginSchema), (req, res, next) => {
   const role = db.prepare('SELECT permissions FROM roles WHERE name = ?').get(user.role);
   const permissions = role ? JSON.parse(role.permissions) : [];
 
-  db.prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
+  const updateResult = db.prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?').run(user.id);
+  console.log(`[Login] Update last_login_at result: ${JSON.stringify(updateResult)}`);
 
-  console.log('Login successful for:', user.username);
+  console.log(`[Login] Login successful for: ${user.username}, Role: ${user.role}, Permissions: ${permissions.length}`);
 
   res.json({
     success: true,
