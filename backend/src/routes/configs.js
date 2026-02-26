@@ -472,22 +472,33 @@ router.post('/validate', requirePermission('config:write'), async (req, res) => 
       const tempIncludePath = `${configPath}/.temp_include.conf`;
       
       try {
-        const hasEvents = content.includes('events');
-        const hasHttp = content.includes('http');
-        
-        console.log(`[Config Validate] Remote server: ${server.name}, hasEvents: ${hasEvents}, hasHttp: ${hasHttp}`);
-        
-        let configToValidate;
-        if (hasEvents || hasHttp) {
-          configToValidate = content;
-        } else {
-          await executeRemoteCommand(server, `cat > ${tempIncludePath} << 'EOF'\n${content}\nEOF`);
-          const baseConfig = `events {}
+      const hasEvents = content.includes('events');
+      const hasHttp = content.includes('http');
+      const hasUpstream = content.includes('upstream');
+      const hasServer = content.includes('server');
+      
+      console.log(`[Config Validate] Remote server: ${server.name}, hasEvents: ${hasEvents}, hasHttp: ${hasHttp}, hasUpstream: ${hasUpstream}, hasServer: ${hasServer}`);
+      
+      let configToValidate;
+      if (hasEvents && hasHttp) {
+        configToValidate = content;
+      } else if (hasUpstream || hasServer) {
+        await executeRemoteCommand(server, `cat > ${tempIncludePath} << 'EOF'\n${content}\nEOF`);
+        const baseConfig = `events {}
 http {
     include ${tempIncludePath};
 }`;
-          configToValidate = baseConfig;
-        }
+        configToValidate = baseConfig;
+      } else if (hasHttp) {
+        configToValidate = content;
+      } else {
+        await executeRemoteCommand(server, `cat > ${tempIncludePath} << 'EOF'\n${content}\nEOF`);
+        const baseConfig = `events {}
+http {
+    include ${tempIncludePath};
+}`;
+        configToValidate = baseConfig;
+      }
         
         await executeRemoteCommand(server, `cat > ${tempConfigPath} << 'EOF'\n${configToValidate}\nEOF`);
 
@@ -523,11 +534,22 @@ http {
     try {
       const hasEvents = content.includes('events');
       const hasHttp = content.includes('http');
+      const hasUpstream = content.includes('upstream');
+      const hasServer = content.includes('server');
       
-      console.log(`[Config Validate] Local server, hasEvents: ${hasEvents}, hasHttp: ${hasHttp}`);
+      console.log(`[Config Validate] Local server, hasEvents: ${hasEvents}, hasHttp: ${hasHttp}, hasUpstream: ${hasUpstream}, hasServer: ${hasServer}`);
       
       let configToValidate;
-      if (hasEvents || hasHttp) {
+      if (hasEvents && hasHttp) {
+        configToValidate = content;
+      } else if (hasUpstream || hasServer) {
+        fs.writeFileSync(tempIncludePath, content, 'utf-8');
+        const baseConfig = `events {}
+http {
+    include ${tempIncludePath};
+}`;
+        configToValidate = baseConfig;
+      } else if (hasHttp) {
         configToValidate = content;
       } else {
         fs.writeFileSync(tempIncludePath, content, 'utf-8');
