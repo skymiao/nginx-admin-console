@@ -17,9 +17,11 @@ const { addIsLocalColumn } = require('./migrations/addIsLocalField');
 const { createServerLogFormatsTable, insertDefaultFormats } = require('./migrations/createServerLogFormats');
 const { migrate: addSettingPermissions } = require('./migrations/addSettingPermissions');
 const { migrate: fixLogFormatsDuplicates } = require('./migrations/fixLogFormatsDuplicates');
+const addPerformanceIndexes = require('./migrations/addPerformanceIndexes');
 const { errorHandler } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 const { getCorsConfig } = require('./utils/corsConfig');
+const { closeAllPools } = require('./utils/sshPool');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -40,6 +42,7 @@ createServerLogFormatsTable();
 insertDefaultFormats();
 fixLogFormatsDuplicates();
 addSettingPermissions();
+addPerformanceIndexes();
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -93,6 +96,7 @@ app.use('/api/configs', (req, res, next) => {
 }, require('./routes/configs'));
 app.use('/api/logs', require('./routes/logs'));
 app.use('/api/log-statistics', require('./routes/log-statistics'));
+// app.use('/api/log-rotation', require('./routes/log-rotation'));
 app.use('/api/history', require('./routes/history'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/log-formats', require('./routes/log-formats'));
@@ -119,6 +123,23 @@ app.use((req, res) => {
 });
 
 app.use(errorHandler);
+
+const gracefulShutdown = async (signal) => {
+  console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
+  
+  try {
+    await closeAllPools();
+    console.log('All SSH pools closed');
+  } catch (error) {
+    console.error('Error closing SSH pools:', error);
+  }
+  
+  console.log('Graceful shutdown completed');
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

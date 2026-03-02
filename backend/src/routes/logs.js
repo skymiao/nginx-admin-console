@@ -4,6 +4,7 @@ const fs = require('fs-extra');
 const { Client } = require('ssh2');
 const { db } = require('../database');
 const { authMiddleware, requirePermission } = require('../middleware/auth');
+const { readLogLines, readLogLinesWithPattern, tailLogLines, getLogFileSize } = require('../utils/logReader');
 
 const router = express.Router();
 
@@ -206,6 +207,7 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
   try {
     let content = '';
     let totalLines = 0;
+    let allLogLines = [];
     let stats = { success: 0, error: 0, redirect: 0, statusCodes: {}, methods: {} };
 
     if (server) {
@@ -217,6 +219,7 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
       const linesToRead = keyword && keyword.trim() ? Math.min(totalLines, 10000) : lines * 2;
       const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n ${linesToRead} ${accessLogPath}`);
       content = output;
+      allLogLines = content ? content.trim().split('\n').filter(line => line.trim()) : [];
       
       const { output: grepOutput } = await executeRemoteCommand(server, `grep -oE '" [0-9]{3}' ${accessLogPath} 2>/dev/null | cut -d' ' -f2 | sort | uniq -c`);
       if (grepOutput) {
@@ -258,8 +261,7 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
         return res.json({ logs: '', total: 0, filteredTotal: 0, stats });
       }
 
-      content = fs.readFileSync(accessLogPath, 'utf-8');
-      const allLogLines = content.split('\n').filter(line => line.trim());
+      allLogLines = await readLogLines(accessLogPath, 10000, false);
       totalLines = allLogLines.length;
       
       allLogLines.forEach(line => {
@@ -284,7 +286,7 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
       });
     }
 
-    const logLines = content.split('\n').filter(line => line.trim());
+    const logLines = allLogLines;
 
     let filteredLogs = logLines;
     if (keyword && keyword.trim()) {
@@ -369,11 +371,10 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
         return res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0, stats } });
       }
 
-      content = fs.readFileSync(errorLogPath, 'utf-8');
-      const logLines = content.split('\n').filter(line => line.trim());
-      totalLines = logLines.length;
+      const allLogLines = await readLogLines(errorLogPath, 10000, false);
+      totalLines = allLogLines.length;
       
-      logLines.forEach(line => {
+      allLogLines.forEach(line => {
         const match = line.match(/\[(error|warn|info|debug)\]/i);
         if (match) {
           const level = match[1].toLowerCase();
@@ -389,7 +390,7 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
       });
     }
 
-    const logLines = content.split('\n').filter(line => line.trim());
+    const logLines = allLogLines;
 
     let filteredLogs = logLines;
     if (keyword && keyword.trim()) {

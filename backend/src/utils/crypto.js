@@ -21,7 +21,7 @@ const encrypt = (text) => {
     const iv = crypto.randomBytes(IV_LENGTH);
     const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(key), iv);
     
-    let encrypted = cipher.update(text, 'utf8', 'hex');
+    let encrypted = cipher.update(text, 'utf8');
     encrypted = Buffer.concat([encrypted, cipher.final()]);
     
     return iv.toString('hex') + ':' + encrypted.toString('hex');

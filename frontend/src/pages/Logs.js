@@ -45,6 +45,7 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons';
 import { logAPI, serverAPI } from '../services/api';
+import VirtualLogList from '../components/VirtualLogList';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -711,81 +712,11 @@ const Logs = () => {
     
     if (viewMode === 'raw') {
       return (
-        <>
-          {displayLines.map((line, index) => {
-            const actualIndex = startIndex + index;
-            const isExpanded = expandedLogs[`access-${actualIndex}`];
-            const isLongLine = line.length > 300;
-
-            return (
-              <div key={actualIndex} className="log-entry" style={{
-                padding: '12px 16px',
-                borderBottom: '1px solid #F1F5F9',
-                fontFamily: 'monospace',
-                fontSize: 13,
-                transition: 'all 0.2s ease',
-              }}>
-                <div style={{
-                  display: 'flex',
-                  gap: 16,
-                  alignItems: 'center',
-                  flexWrap: 'nowrap',
-                  overflow: 'hidden',
-                }}>
-                  <span style={{ 
-                    color: '#1E293B', 
-                    overflow: 'hidden', 
-                    textOverflow: 'ellipsis', 
-                    whiteSpace: 'nowrap', 
-                    fontWeight: 500, 
-                    flexShrink: 1 
-                  }}>
-                    {line}
-                  </span>
-                  {isLongLine && (
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() => setExpandedLogs(prev => ({ ...prev, [`access-${actualIndex}`]: !isExpanded }))}
-                      style={{ padding: 0, height: 'auto', flexShrink: 0 }}
-                    >
-                      {isExpanded ? '收起' : '查看'}
-                    </Button>
-                  )}
-                </div>
-                {isLongLine && isExpanded && (
-                  <div style={{
-                    marginTop: 8,
-                    padding: '12px',
-                    backgroundColor: '#F8FAFC',
-                    borderRadius: 4,
-                    wordBreak: 'break-all',
-                    whiteSpace: 'pre-wrap',
-                    fontSize: 13,
-                  }}>
-                    {line}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {lines.length > pageSize && (
-            <div style={{ padding: '16px', textAlign: 'center', borderTop: '1px solid #F1F5F9' }}>
-              <Pagination
-                current={currentPage}
-                total={lines.length}
-                pageSize={pageSize}
-                onChange={(page, size) => {
-                  setCurrentPage(page);
-                  setPageSize(size);
-                }}
-                showSizeChanger
-                showTotal={(total) => `共 ${total} 条`}
-                pageSizeOptions={['10', '20', '50', '100', '200']}
-              />
-            </div>
-          )}
-        </>
+        <VirtualLogList
+          lines={lines}
+          expandedLogs={expandedLogs}
+          setExpandedLogs={setExpandedLogs}
+        />
       );
     }
     
@@ -959,104 +890,11 @@ const Logs = () => {
     const displayLines = lines.slice(startIndex, endIndex);
     
     return (
-      <>
-        {displayLines.map((line, index) => {
-          const actualIndex = startIndex + index;
-          const timeMatch = line.match(/\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}/);
-          const levelMatch = line.match(/\[(error|warn|info|debug)\]/i);
-
-          let levelColor = 'default';
-          let levelIcon = <InfoOutlined />;
-          if (levelMatch) {
-            const level = levelMatch[1].toLowerCase();
-            if (level === 'error') {
-              levelColor = 'error';
-              levelIcon = <CloseCircleOutlined />;
-            } else if (level === 'warn') {
-              levelColor = 'warning';
-              levelIcon = <WarningOutlined />;
-            } else if (level === 'info') {
-              levelColor = 'processing';
-              levelIcon = <InfoOutlined />;
-            }
-          }
-
-          const isExpanded = expandedLogs[`error-${actualIndex}`];
-          const isLongLine = line.length > 300;
-
-          return (
-            <div key={actualIndex} className="log-entry" style={{
-              padding: '12px 16px',
-              borderBottom: '1px solid #F1F5F9',
-              fontFamily: 'monospace',
-              fontSize: 13,
-              transition: 'all 0.2s ease',
-            }}>
-              <div style={{
-                display: 'flex',
-                gap: 16,
-                alignItems: 'center',
-                flexWrap: 'nowrap',
-                overflow: 'hidden',
-              }}>
-                <span style={{ color: '#94A3B8', minWidth: 160, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                  <ClockCircleOutlined style={{ fontSize: 12 }} />
-                  {timeMatch ? timeMatch[0] : '-'}
-                </span>
-                {levelMatch && (
-                  <Badge 
-                    status={levelColor} 
-                    text={levelMatch[1].toUpperCase()}
-                    style={{ minWidth: 80, flexShrink: 0 }}
-                  />
-                )}
-                <span style={{ color: '#1E293B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, flexShrink: 1 }}>
-                  {line}
-                </span>
-                {isLongLine && (
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => setExpandedLogs(prev => ({ ...prev, [`error-${actualIndex}`]: !isExpanded }))}
-                    style={{ padding: 0, height: 'auto', flexShrink: 0 }}
-                  >
-                    {isExpanded ? '收起' : '查看'}
-                  </Button>
-                )}
-              </div>
-              {isLongLine && isExpanded && (
-                <div style={{
-                  marginTop: 8,
-                  padding: '12px',
-                  backgroundColor: '#F8FAFC',
-                  borderRadius: 4,
-                  wordBreak: 'break-all',
-                  whiteSpace: 'pre-wrap',
-                  fontSize: 13,
-                }}>
-                  {line}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {lines.length > pageSize && (
-          <div style={{ padding: '16px', textAlign: 'center', borderTop: '1px solid #F1F5F9' }}>
-            <Pagination
-              current={currentPage}
-              total={lines.length}
-              pageSize={pageSize}
-              onChange={(page, size) => {
-                setCurrentPage(page);
-                setPageSize(size);
-              }}
-              showSizeChanger
-              showTotal={(total) => `共 ${total} 条`}
-              pageSizeOptions={['10', '20', '50', '100', '200']}
-            />
-          </div>
-        )}
-      </>
+      <VirtualLogList
+        lines={lines}
+        expandedLogs={expandedLogs}
+        setExpandedLogs={setExpandedLogs}
+      />
     );
   };
 

@@ -2,6 +2,7 @@ const express = require('express');
 const { db } = require('../database');
 const { authMiddleware, requirePermission } = require('../middleware/auth');
 const { encryptPassword, encryptPrivateKey, decryptPassword, decryptPrivateKey } = require('../utils/crypto');
+const cache = require('../utils/cache');
 
 const router = express.Router();
 
@@ -18,8 +19,18 @@ const formatServer = (server) => {
 
 router.get('/', requirePermission('server:read'), (req, res) => {
   try {
+    const cacheKey = 'servers:list';
+    const cached = cache.get(cacheKey);
+    
+    if (cached) {
+      return res.json({ success: true, data: cached, fromCache: true });
+    }
+    
     const servers = db.prepare('SELECT * FROM servers ORDER BY is_default DESC, created_at DESC').all();
     const decryptedServers = servers.map(formatServer);
+    
+    cache.set(cacheKey, decryptedServers, 300);
+    
     res.json({ success: true, data: decryptedServers });
   } catch (error) {
     console.error('Failed to fetch servers:', error);
@@ -74,6 +85,8 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
       useSudo ?1 : 0
     );
 
+    cache.del('servers:list');
+
     res.status(201).json({ 
       success: true,
       data: { id: result.lastInsertRowid },
@@ -126,6 +139,8 @@ router.put('/:id', requirePermission('server:manage'), (req, res) => {
       req.params.id
     );
 
+    cache.del('servers:list');
+
     res.json({ success: true, message: '更新成功' });
   } catch (error) {
     console.error('Failed to update server:', error);
@@ -145,6 +160,9 @@ router.delete('/:id', requirePermission('server:manage'), (req, res) => {
     }
 
     db.prepare('DELETE FROM servers WHERE id = ?').run(req.params.id);
+    
+    cache.del('servers:list');
+    
     res.json({ success: true, message: '删除成功' });
   } catch (error) {
     console.error('Failed to delete server:', error);
