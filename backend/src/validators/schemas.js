@@ -1,9 +1,20 @@
 const { z } = require('zod');
+const { validatePassword } = require('../utils/passwordValidator');
+
+const passwordValidation = (value, ctx) => {
+  const errors = validatePassword(value);
+  if (errors.length > 0) {
+    return ctx.createError({
+      message: errors.join('; '),
+    });
+  }
+  return z.NEVER;
+};
 
 const createUserSchema = z.object({
   username: z.string().min(3, '用户名至少3个字符').max(50, '用户名最多50个字符'),
   email: z.string().email('邮箱格式不正确'),
-  password: z.string().min(6, '密码至少6个字符').max(100, '密码最多100个字符'),
+  password: z.string().min(8, '密码至少8个字符').max(100, '密码最多100个字符').refine(passwordValidation, { message: '密码强度不足' }),
   role: z.enum(['admin', 'developer', 'viewer'], '角色必须是 admin、developer 或 viewer'),
 });
 
@@ -11,7 +22,7 @@ const updateUserSchema = createUserSchema.partial();
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, '当前密码不能为空'),
-  newPassword: z.string().min(6, '新密码至少6个字符').max(100, '新密码最多100个字符'),
+  newPassword: z.string().min(8, '新密码至少8个字符').max(100, '新密码最多100个字符').refine(passwordValidation, { message: '密码强度不足' }),
 });
 
 const createServerSchema = z.object({

@@ -27,6 +27,16 @@ const createRateLimiter = (type, defaultWindowMs = 15 * 60 * 1000, defaultMax = 
   return rateLimit({
     windowMs,
     max,
+    keyGenerator: (req) => {
+      const userId = req.user?.id;
+      const ip = req.ip;
+      
+      if (userId) {
+        return `user:${userId}`;
+      }
+      
+      return `ip:${ip}`;
+    },
     message: {
       success: false,
       message: `请求过于频繁，请在 ${windowText} 后再试`,

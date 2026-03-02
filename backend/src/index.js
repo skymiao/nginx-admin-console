@@ -19,6 +19,7 @@ const { migrate: addSettingPermissions } = require('./migrations/addSettingPermi
 const { migrate: fixLogFormatsDuplicates } = require('./migrations/fixLogFormatsDuplicates');
 const { errorHandler } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
+const { getCorsConfig } = require('./utils/corsConfig');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -59,13 +60,7 @@ app.use(helmet({
   referrerPolicy: { policy: 'same-origin' },
 }));
 
-app.use(cors({
-  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  maxAge: 86400,
-}));
+app.use(cors(getCorsConfig()));
 
 app.use(compression({
   filter: (req, res) => {

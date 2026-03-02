@@ -1,5 +1,6 @@
 const { Client } = require('ssh2');
 const { db } = require('../database');
+const { decryptPassword, decryptPrivateKey } = require('./crypto');
 
 const executeRemoteCommand = (server, command) => {
   return new Promise((resolve, reject) => {
@@ -59,10 +60,13 @@ const executeRemoteCommand = (server, command) => {
       keepaliveInterval: 30000,
     };
 
-    if (server.private_key) {
-      config.privateKey = server.private_key;
-    } else {
-      config.password = server.password;
+    const password = server.password ? decryptPassword(server.password) : null;
+    const privateKey = server.private_key ? decryptPrivateKey(server.private_key) : null;
+
+    if (privateKey) {
+      config.privateKey = privateKey;
+    } else if (password) {
+      config.password = password;
     }
 
     commandTimeout = setTimeout(() => {
@@ -77,11 +81,23 @@ const executeRemoteCommand = (server, command) => {
 const getServer = (serverId) => {
   if (!serverId || serverId === 'local') {
     const defaultServer = db.prepare('SELECT * FROM servers WHERE is_default = 1').get();
-    return defaultServer || null;
+    if (!defaultServer) return null;
+    
+    return {
+      ...defaultServer,
+      password: defaultServer.password ? decryptPassword(defaultServer.password) : null,
+      private_key: defaultServer.private_key ? decryptPrivateKey(defaultServer.private_key) : null,
+    };
   }
 
   const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(serverId);
-  return server;
+  if (!server) return null;
+  
+  return {
+    ...server,
+    password: server.password ? decryptPassword(server.password) : null,
+    private_key: server.private_key ? decryptPrivateKey(server.private_key) : null,
+  };
 };
 
 module.exports = {

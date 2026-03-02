@@ -1,15 +1,26 @@
 const express = require('express');
 const { db } = require('../database');
 const { authMiddleware, requirePermission } = require('../middleware/auth');
+const { encryptPassword, encryptPrivateKey, decryptPassword, decryptPrivateKey } = require('../utils/crypto');
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
+const formatServer = (server) => {
+  if (!server) return null;
+  return {
+    ...server,
+    password: server.password ? decryptPassword(server.password) : null,
+    private_key: server.private_key ? decryptPrivateKey(server.private_key) : null,
+  };
+};
+
 router.get('/', requirePermission('server:read'), (req, res) => {
   try {
     const servers = db.prepare('SELECT * FROM servers ORDER BY is_default DESC, created_at DESC').all();
-    res.json({ success: true, data: servers });
+    const decryptedServers = servers.map(formatServer);
+    res.json({ success: true, data: decryptedServers });
   } catch (error) {
     console.error('Failed to fetch servers:', error);
     res.status(500).json({ success: false, message: '获取服务器列表失败', error: error.message });
@@ -22,7 +33,7 @@ router.get('/:id', requirePermission('server:read'), (req, res) => {
     if (!server) {
       return res.status(404).json({ success: false, message: '服务器不存在' });
     }
-    res.json({ success: true, data: server });
+    res.json({ success: true, data: formatServer(server) });
   } catch (error) {
     console.error('Failed to fetch server:', error);
     res.status(500).json({ success: false, message: '获取服务器信息失败', error: error.message });
@@ -41,6 +52,9 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
       return res.status(400).json({ success: false, message: '密码和私钥至少提供一个' });
     }
 
+    const encryptedPassword = password ? encryptPassword(password) : null;
+    const encryptedPrivateKey = privateKey ? encryptPrivateKey(privateKey) : null;
+
     const insertSQL = `
       INSERT INTO servers (name, host, port, username, password, private_key, description, nginx_config_path, nginx_log_path, nginx_status_url, use_sudo)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -51,13 +65,13 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
       host,
       port || 22,
       username,
-      password || null,
-      privateKey || null,
+      encryptedPassword,
+      encryptedPrivateKey,
       description || null,
       nginxConfigPath || '/etc/nginx',
       nginxLogPath || '/var/log/nginx',
       nginxStatusUrl || 'http://localhost/nginx_status',
-      useSudo ? 1 : 0
+      useSudo ?1 : 0
     );
 
     res.status(201).json({ 
@@ -80,6 +94,17 @@ router.put('/:id', requirePermission('server:manage'), (req, res) => {
       return res.status(404).json({ success: false, message: '服务器不存在' });
     }
 
+    let encryptedPassword = existingServer.password;
+    let encryptedPrivateKey = existingServer.private_key;
+
+    if (password !== undefined && password !== '') {
+      encryptedPassword = encryptPassword(password);
+    }
+
+    if (privateKey !== undefined && privateKey !== '') {
+      encryptedPrivateKey = encryptPrivateKey(privateKey);
+    }
+
     const updateSQL = `
       UPDATE servers 
       SET name = ?, host = ?, port = ?, username = ?, password = ?, private_key = ?, description = ?, nginx_config_path = ?, nginx_log_path = ?, nginx_status_url = ?, use_sudo = ?, updated_at = CURRENT_TIMESTAMP
@@ -91,8 +116,8 @@ router.put('/:id', requirePermission('server:manage'), (req, res) => {
       host !== undefined ? host : existingServer.host,
       port !== undefined ? port : existingServer.port,
       username !== undefined ? username : existingServer.username,
-      password !== undefined && password !== '' ? password : existingServer.password,
-      privateKey !== undefined && privateKey !== '' ? privateKey : existingServer.private_key,
+      encryptedPassword,
+      encryptedPrivateKey,
       description !== undefined ? description : existingServer.description,
       nginxConfigPath !== undefined ? nginxConfigPath : existingServer.nginx_config_path,
       nginxLogPath !== undefined ? nginxLogPath : existingServer.nginx_log_path,

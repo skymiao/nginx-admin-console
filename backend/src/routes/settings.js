@@ -5,6 +5,7 @@ const { exec } = require('child_process');
 const os = require('os');
 const { db } = require('../database');
 const { authMiddleware, requirePermission } = require('../middleware/auth');
+const { getAllowedOrigins, updateCorsOrigins } = require('../utils/corsConfig');
 
 const router = express.Router();
 
@@ -27,6 +28,9 @@ router.get('/', requirePermission('system:manage'), (req, res) => {
       settingsMap[setting.key] = setting.value;
     }
   });
+  
+  settingsMap.corsOrigins = getAllowedOrigins();
+  
   res.json(settingsMap);
 });
 
@@ -38,6 +42,14 @@ router.put('/', requirePermission('system:manage'), (req, res) => {
   }
 
   try {
+    if (updates.corsOrigins !== undefined) {
+      if (!Array.isArray(updates.corsOrigins)) {
+        return res.status(400).json({ message: 'CORS 来源必须是数组' });
+      }
+      updateCorsOrigins(updates.corsOrigins);
+      delete updates.corsOrigins;
+    }
+
     Object.entries(updates).forEach(([key, value]) => {
       if (key.startsWith('rateLimit') && (key.endsWith('Window') || key.endsWith('Max'))) {
         const type = key.replace('rateLimit', '').replace('Window', '').replace('Max', '').toLowerCase();
@@ -78,6 +90,9 @@ router.put('/', requirePermission('system:manage'), (req, res) => {
         settingsMap[setting.key] = setting.value;
       }
     });
+    
+    settingsMap.corsOrigins = getAllowedOrigins();
+    
     res.json(settingsMap);
   } catch (error) {
     res.status(500).json({ message: '更新设置失败', error: error.message });
