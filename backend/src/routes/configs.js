@@ -18,8 +18,19 @@ const executeRemoteCommand = (server, command) => {
     let error = '';
     let commandTimeout;
 
+    let finalCommand;
+    if (server.use_sudo) {
+      if (command.includes('|')) {
+        finalCommand = `sudo bash -c '${command}'`;
+      } else {
+        finalCommand = `sudo ${command}`;
+      }
+    } else {
+      finalCommand = command;
+    }
+
     conn.on('ready', () => {
-      conn.exec(command, (err, stream) => {
+      conn.exec(finalCommand, (err, stream) => {
         if (err) {
           conn.end();
           return reject(err);
@@ -483,42 +494,16 @@ router.post('/validate', requirePermission('config:write'), async (req, res) => 
     try {
       const configPath = server.nginx_config_path || '/etc/nginx';
       const tempConfigPath = `${configPath}/.temp_validate.conf`;
-      const tempIncludePath = `${configPath}/.temp_include.conf`;
+      
+      console.log(`[Config Validate] Remote server: ${server.name}, Config path: ${configPath}`);
       
       try {
-      const hasEvents = content.includes('events');
-      const hasHttp = content.includes('http');
-      const hasUpstream = content.includes('upstream');
-      const hasServer = content.includes('server');
-      
-      console.log(`[Config Validate] Remote server: ${server.name}, hasEvents: ${hasEvents}, hasHttp: ${hasHttp}, hasUpstream: ${hasUpstream}, hasServer: ${hasServer}`);
-      
-      let configToValidate;
-      if (hasEvents && hasHttp) {
-        configToValidate = content;
-      } else if (hasUpstream || hasServer) {
-        await executeRemoteCommand(server, `cat > ${tempIncludePath} << 'EOF'\n${content}\nEOF`);
-        const baseConfig = `events {}
-http {
-    include ${tempIncludePath};
-}`;
-        configToValidate = baseConfig;
-      } else if (hasHttp) {
-        configToValidate = content;
-      } else {
-        await executeRemoteCommand(server, `cat > ${tempIncludePath} << 'EOF'\n${content}\nEOF`);
-        const baseConfig = `events {}
-http {
-    include ${tempIncludePath};
-}`;
-        configToValidate = baseConfig;
-      }
+        const base64Content = Buffer.from(content).toString('base64');
+        await executeRemoteCommand(server, `echo ${base64Content} | base64 -d | tee ${tempConfigPath} > /dev/null`);
         
-        await executeRemoteCommand(server, `cat > ${tempConfigPath} << 'EOF'\n${configToValidate}\nEOF`);
-
         const { output, error } = await executeRemoteCommand(server, `nginx -t -c ${tempConfigPath} 2>&1`);
         
-        await executeRemoteCommand(server, `rm -f ${tempIncludePath} ${tempConfigPath}`);
+        await executeRemoteCommand(server, `rm -f ${tempConfigPath}`);
         
         const combinedOutput = output + error;
         console.log(`[Config Validate] Nginx test output: ${combinedOutput}`);
@@ -530,7 +515,7 @@ http {
         res.json({ success: true, data: { valid: false, error: combinedOutput || '配置验证失败' } });
       } catch (error) {
         try {
-          await executeRemoteCommand(server, `rm -f ${tempIncludePath} ${tempConfigPath}`);
+          await executeRemoteCommand(server, `rm -f ${tempConfigPath}`);
         } catch (cleanupError) {
           console.error('Cleanup error:', cleanupError);
         }

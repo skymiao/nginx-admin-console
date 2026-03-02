@@ -15,10 +15,16 @@ const executeRemoteCommand = (server, command) => {
     
     let output = '';
     let error = '';
+    let commandTimeout;
+
+    const finalCommand = server.use_sudo ? `sudo ${command}` : command;
 
     conn.on('ready', () => {
-      conn.exec(command, (err, stream) => {
+      conn.exec(finalCommand, (err, stream) => {
         if (err) {
+          if (commandTimeout) {
+            clearTimeout(commandTimeout);
+          }
           conn.end();
           return reject(err);
         }
@@ -32,6 +38,9 @@ const executeRemoteCommand = (server, command) => {
         });
 
         stream.on('close', (code) => {
+          if (commandTimeout) {
+            clearTimeout(commandTimeout);
+          }
           conn.end();
           if (code !== 0) {
             reject(new Error(error || output));
@@ -43,6 +52,9 @@ const executeRemoteCommand = (server, command) => {
     });
 
     conn.on('error', (err) => {
+      if (commandTimeout) {
+        clearTimeout(commandTimeout);
+      }
       reject(err);
     });
 
@@ -60,6 +72,11 @@ const executeRemoteCommand = (server, command) => {
     } else if (server.private_key) {
       config.privateKey = server.private_key;
     }
+
+    commandTimeout = setTimeout(() => {
+      conn.end();
+      reject(new Error('Command execution timeout'));
+    }, 120000);
 
     conn.connect(config);
   });
