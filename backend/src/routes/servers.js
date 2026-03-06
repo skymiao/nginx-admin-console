@@ -2,6 +2,8 @@ const express = require('express');
 const { Client } = require('ssh2');
 const { authMiddleware, requirePermission } = require('../middleware/auth');
 const { db } = require('../database');
+const { executeWithPool } = require('../utils/sshPool');
+const { decryptPassword, decryptPrivateKey } = require('../utils/crypto');
 
 const router = express.Router();
 
@@ -11,6 +13,64 @@ router.post('/test-connection', requirePermission('server:manage'), async (req, 
   try {
     const { host, port, username, password, privateKey, isLocal, nginxStatusUrl } = req.body;
 
+    const validatePrivateKey = (key) => {
+      if (!key) return { valid: true };
+      
+      const trimmedKey = key.trim();
+      
+      if (!trimmedKey.includes('-----BEGIN') || !trimmedKey.includes('-----END')) {
+        return { 
+          valid: false, 
+          error: '私钥格式不正确，必须包含 BEGIN 和 END 标记（如：-----BEGIN RSA PRIVATE KEY-----）' 
+        };
+      }
+      
+      if (!trimmedKey.includes('PRIVATE KEY')) {
+        return { 
+          valid: false, 
+          error: '私钥格式不正确，必须是 PRIVATE KEY 格式' 
+        };
+      }
+      
+      return { valid: true };
+    };
+
+    const formatSSHError = (err, host, port, username) => {
+      const key = `${host}:${port}:${username}`;
+      
+      if (err.message.includes('All configured authentication methods failed')) {
+        if (privateKey) {
+          return `SSH 认证失败 (${key}): 私钥认证失败，请检查：\n1. 私钥是否正确\n2. 私钥是否已添加到服务器的 authorized_keys\n3. 私钥文件权限是否正确 (600)\n4. 用户名是否正确`;
+        } else if (password) {
+          return `SSH 认证失败 (${key}): 密码认证失败，请检查：\n1. 密码是否正确\n2. 用户名是否正确\n3. 服务器是否允许密码认证`;
+        } else {
+          return `SSH 认证失败 (${key}): 未提供认证凭据（密码或私钥）`;
+        }
+      }
+      
+      if (err.message.includes('ECONNREFUSED')) {
+        return `SSH 连接被拒绝 (${key}): 请检查主机地址和SSH端口 (默认22)`;
+      }
+      
+      if (err.message.includes('ETIMEDOUT') || err.message.includes('Timed out')) {
+        return `SSH 连接超时 (${key}): 请检查主机地址是否可达，网络连接是否正常`;
+      }
+      
+      if (err.message.includes('ENOTFOUND') || err.message.includes('getaddrinfo')) {
+        return `SSH 主机未找到 (${key}): 请检查主机地址是否正确`;
+      }
+      
+      if (err.message.includes('EHOSTUNREACH')) {
+        return `SSH 主机不可达 (${key}): 请检查网络连接和防火墙设置`;
+      }
+      
+      if (err.message.includes('Permission denied')) {
+        return `SSH 权限被拒绝 (${key}): 请检查用户名和密码/密钥是否正确`;
+      }
+      
+      return `SSH 连接失败 (${key}): ${err.message}`;
+    };
+
     if (isLocal || host === 'localhost' || host === '127.0.0.1' || !host) {
       const statusUrl = nginxStatusUrl || 'http://localhost/nginx_status';
       
@@ -19,14 +79,14 @@ router.post('/test-connection', requirePermission('server:manage'), async (req, 
         const url = new URL(statusUrl);
         
         return new Promise((resolve) => {
-          const req = http.get(url, (res) => {
+          const req = http.get(url, (httpRes) => {
             let data = '';
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => {
-              if (res.statusCode === 200) {
+            httpRes.on('data', chunk => data += chunk);
+            httpRes.on('end', () => {
+              if (httpRes.statusCode === 200) {
                 resolve(res.json({ success: true, message: '本地连接成功 (Nginx状态: 正常)' }));
               } else {
-                resolve(res.json({ success: true, message: `本地连接成功 (Nginx状态: HTTP ${res.statusCode})` }));
+                resolve(res.json({ success: true, message: `本地连接成功 (Nginx状态: HTTP ${httpRes.statusCode})` }));
               }
             });
           });
@@ -39,7 +99,7 @@ router.post('/test-connection', requirePermission('server:manage'), async (req, 
             }
           });
           
-          req.setTimeout(5000, () => {
+          req.setTimeout(10000, () => {
             req.destroy();
             resolve(res.status(500).json({ success: false, message: '连接超时' }));
           });
@@ -53,52 +113,41 @@ router.post('/test-connection', requirePermission('server:manage'), async (req, 
       return res.status(400).json({ success: false, message: '缺少必要的连接参数 (host/username/password或privateKey)' });
     }
 
-    const conn = new Client();
-    
-    conn.on('ready', () => {
-      conn.end();
-      res.json({ success: true, message: 'SSH连接成功' });
-    });
-
-    conn.on('error', (err) => {
-      console.error('SSH Connection Error:', err.message);
-      let errorMessage = 'SSH连接失败';
-      
-      if (err.message.includes('ECONNREFUSED')) {
-        errorMessage = '连接被拒绝 - 请检查主机地址和SSH端口 (默认22)';
-      } else if (err.message.includes('ETIMEDOUT') || err.message.includes('Timed out')) {
-        errorMessage = '连接超时 - 请检查主机地址是否可达';
-      } else if (err.message.includes('Authentication')) {
-        errorMessage = '认证失败 - 请检查用户名和密码/密钥';
-      } else if (err.message.includes('ENOTFOUND') || err.message.includes('getaddrinfo')) {
-        errorMessage = '主机未找到 - 请检查主机地址是否正确';
-      } else {
-        errorMessage = `连接失败: ${err.message}`;
+    if (privateKey) {
+      const validation = validatePrivateKey(privateKey);
+      if (!validation.valid) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `私钥格式错误: ${validation.error}` 
+        });
       }
-      
-      res.status(500).json({ 
-        success: false, 
-        message: errorMessage,
-        error: err.message 
-      });
-    });
-
-    const config = {
-      host,
-      port: port || 22,
-      username,
-      readyTimeout: 60000,
-      connectTimeout: 60000,
-      keepaliveInterval: 30000,
-    };
-
-    if (password) {
-      config.password = password;
-    } else if (privateKey) {
-      config.privateKey = privateKey;
     }
 
-    conn.connect(config);
+    try {
+      const serverWithCredentials = {
+        host,
+        port: port || 22,
+        username,
+        password: password || null,
+        private_key: privateKey || null,
+      };
+
+      const result = await executeWithPool(serverWithCredentials, 'echo "connection test"');
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      res.json({ success: true, message: 'SSH连接成功', output: result.output });
+    } catch (err) {
+      const formattedError = formatSSHError(err, host, port || 22, username);
+      console.error('SSH Connection Error:', formattedError);
+      res.status(500).json({ 
+        success: false, 
+        message: formattedError,
+        error: err.message 
+      });
+    }
   } catch (error) {
     console.error('Test Connection Exception:', error);
     res.status(500).json({ 
@@ -124,70 +173,24 @@ router.post('/execute-command', requirePermission('server:manage'), async (req, 
       return res.status(404).json({ message: '服务器不存在' });
     }
 
-    const conn = new Client();
-    
-    let output = '';
-    let error = '';
-
-    conn.on('ready', () => {
-      conn.exec(command, (err, stream) => {
-        if (err) {
-          conn.end();
-          return res.status(500).json({ 
-            success: false, 
-            message: '命令执行失败', 
-            error: err.message 
-          });
-        }
-
-        stream.on('data', (data) => {
-          output += data.toString();
-        });
-
-        stream.stderr.on('data', (data) => {
-          error += data.toString();
-        });
-
-        stream.on('close', () => {
-          conn.end();
-          res.json({ 
-            success: true, 
-            output, 
-            error: error || null 
-          });
-        });
-      });
-    });
-
-    conn.on('error', (err) => {
-      res.status(500).json({ 
-        success: false, 
-        message: 'SSH连接失败', 
-        error: err.message 
-      });
-    });
-
-    const config = {
-      host: server.host,
-      port: server.port || 22,
-      username: server.username,
-      readyTimeout: 60000,
-      connectTimeout: 60000,
-      keepaliveInterval: 30000,
+    const serverWithCredentials = {
+      ...server,
+      password: server.password ? decryptPassword(server.password) : null,
+      private_key: server.private_key ? decryptPrivateKey(server.private_key) : null,
     };
 
-    if (server.password) {
-      config.password = server.password;
-    } else if (server.private_key) {
-      config.privateKey = server.private_key;
-    }
-
-    conn.connect(config);
+    const result = await executeWithPool(serverWithCredentials, command);
+    res.json({ 
+      success: true, 
+      output: result.output, 
+      error: result.error || null 
+    });
   } catch (error) {
+    const formattedError = formatSSHError(error, server?.host, server?.port || 22, server?.username);
     res.status(500).json({ 
       success: false, 
       message: '命令执行失败', 
-      error: error.message 
+      error: formattedError || error.message 
     });
   }
 });
@@ -207,103 +210,47 @@ router.post('/reload-nginx', requirePermission('server:manage'), async (req, res
       return res.status(404).json({ message: '服务器不存在' });
     }
 
-    const conn = new Client();
-    
-    conn.on('ready', () => {
-      console.log(`Connected to server ${server.name}, reloading nginx...`);
-      
-      const commands = [
-        'nginx -t',
-        'nginx -s reload'
-      ];
-
-      let currentCommand = 0;
-
-      const executeNext = () => {
-        if (currentCommand >= commands.length) {
-          conn.end();
-          return res.json({ 
-            success: true, 
-            message: 'nginx重载成功' 
-          });
-        }
-
-        const cmd = commands[currentCommand];
-        console.log(`Executing command: ${cmd}`);
-
-        conn.exec(cmd, (err, stream) => {
-          if (err) {
-            conn.end();
-            return res.status(500).json({ 
-              success: false, 
-              message: '命令执行失败', 
-              error: err.message 
-            });
-          }
-
-          let output = '';
-          let stderr = '';
-
-          stream.on('data', (data) => {
-            output += data.toString();
-          });
-
-          stream.stderr.on('data', (data) => {
-            stderr += data.toString();
-          });
-
-          stream.on('close', (code) => {
-            console.log(`Command ${cmd} completed with code ${code}`);
-            console.log(`Output: ${output}`);
-            console.log(`Stderr: ${stderr}`);
-
-            if (code !== 0 && currentCommand === 0) {
-              conn.end();
-              return res.status(500).json({ 
-                success: false, 
-                message: 'nginx配置验证失败', 
-                error: stderr || output 
-              });
-            }
-
-            currentCommand++;
-            executeNext();
-          });
-        });
-      };
-
-      executeNext();
-    });
-
-    conn.on('error', (err) => {
-      res.status(500).json({ 
-        success: false, 
-        message: 'SSH连接失败', 
-        error: err.message 
-      });
-    });
-
-    const config = {
-      host: server.host,
-      port: server.port || 22,
-      username: server.username,
-      readyTimeout: 60000,
-      connectTimeout: 60000,
-      keepaliveInterval: 30000,
+    const serverWithCredentials = {
+      ...server,
+      password: server.password ? decryptPassword(server.password) : null,
+      private_key: server.private_key ? decryptPrivateKey(server.private_key) : null,
     };
 
-    if (server.password) {
-      config.password = server.password;
-    } else if (server.private_key) {
-      config.privateKey = server.private_key;
+    console.log(`Connected to server ${server.name}, reloading nginx...`);
+    
+    const commands = [
+      'nginx -t',
+      'nginx -s reload'
+    ];
+
+    for (let i = 0; i < commands.length; i++) {
+      const cmd = commands[i];
+      console.log(`Executing command: ${cmd}`);
+
+      const result = await executeWithPool(serverWithCredentials, cmd);
+      console.log(`Command ${cmd} completed`);
+      console.log(`Output: ${result.output}`);
+      console.log(`Error: ${result.error}`);
+
+      if (i === 0 && result.error) {
+        return res.status(500).json({ 
+          success: false, 
+          message: 'nginx配置验证失败', 
+          error: result.error || result.output 
+        });
+      }
     }
 
-    conn.connect(config);
+    res.json({ 
+      success: true, 
+      message: 'nginx重载成功' 
+    });
   } catch (error) {
+    const formattedError = formatSSHError(error, server?.host, server?.port || 22, server?.username);
     res.status(500).json({ 
       success: false, 
       message: 'nginx重载失败', 
-      error: error.message 
+      error: formattedError || error.message 
     });
   }
 });
@@ -332,66 +279,26 @@ router.get('/nginx-status', requirePermission('server:read'), async (req, res) =
       return;
     }
 
-    const conn = new Client();
-    
-    conn.on('ready', () => {
-      conn.exec('pgrep -x nginx && echo "running" || echo "stopped"', (err, stream) => {
-        if (err) {
-          conn.end();
-          return res.status(500).json({ 
-            success: false, 
-            message: '状态检查失败', 
-            error: err.message 
-          });
-        }
-
-        let output = '';
-
-        stream.on('data', (data) => {
-          output += data.toString();
-        });
-
-        stream.on('close', () => {
-          conn.end();
-          const isRunning = output.trim() === 'running';
-          res.json({ 
-            success: true, 
-            running: isRunning,
-            status: isRunning ? '运行中' : '已停止'
-          });
-        });
-      });
-    });
-
-    conn.on('error', (err) => {
-      res.status(500).json({ 
-        success: false, 
-        message: 'SSH连接失败', 
-        error: err.message 
-      });
-    });
-
-    const config = {
-      host: server.host,
-      port: server.port || 22,
-      username: server.username,
-      readyTimeout: 60000,
-      connectTimeout: 60000,
-      keepaliveInterval: 30000,
+    const serverWithCredentials = {
+      ...server,
+      password: server.password ? decryptPassword(server.password) : null,
+      private_key: server.private_key ? decryptPrivateKey(server.private_key) : null,
     };
 
-    if (server.password) {
-      config.password = server.password;
-    } else if (server.private_key) {
-      config.privateKey = server.private_key;
-    }
-
-    conn.connect(config);
+    const result = await executeWithPool(serverWithCredentials, 'pgrep -x nginx && echo "running" || echo "stopped"');
+    const isRunning = result.output.trim() === 'running';
+    
+    res.json({ 
+      success: true, 
+      running: isRunning,
+      status: isRunning ? '运行中' : '已停止'
+    });
   } catch (error) {
+    const formattedError = formatSSHError(error, server?.host, server?.port || 22, server?.username);
     res.status(500).json({ 
       success: false, 
       message: '状态检查失败', 
-      error: error.message 
+      error: formattedError || error.message 
     });
   }
 });

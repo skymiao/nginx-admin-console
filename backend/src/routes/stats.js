@@ -54,24 +54,47 @@ const getNginxStatusUrl = (server) => {
 
 router.get('/', requirePermission('server:read'), async (req, res) => {
   const { serverId } = req.query;
+  console.log(`[Stats API] GET /stats - serverId: ${serverId || 'null'}`);
+  
   const server = getServer(serverId);
+  if (!server) {
+    console.error(`[Stats API] ✗ 服务器不存在 - serverId: ${serverId}`);
+    return res.json({ 
+      success: true,
+      data: {
+        activeConnections: 0,
+        accepts: 0,
+        handled: 0,
+        requests: 0,
+        reading: 0,
+        writing: 0,
+        waiting: 0
+      }
+    });
+  }
 
   try {
     let output = '';
     const statusUrl = getNginxStatusUrl(server);
+    console.log(`[Stats API] 获取Nginx状态URL: ${statusUrl}`);
 
     if (server && !server.is_default) {
+      console.log(`[Stats API] 执行远程命令 - 服务器: ${server.host}:${server.port}`);
       const { output: remoteOutput } = await executeRemoteCommand(server, `curl -s ${statusUrl}`);
       output = remoteOutput;
+      console.log(`[Stats API] ✓ 远程命令执行成功 - 输出长度: ${output.length} bytes`);
     } else {
+      console.log(`[Stats API] 执行本地命令`);
       const { execSync } = require('child_process');
       output = execSync(`curl -s ${statusUrl}`, { encoding: 'utf-8' });
+      console.log(`[Stats API] ✓ 本地命令执行成功 - 输出长度: ${output.length} bytes`);
     }
 
     const stats = parseStubStatus(output);
+    console.log(`[Stats API] ✓ 解析Nginx状态成功 - activeConnections: ${stats.activeConnections}, requests: ${stats.requests}`);
     res.json({ success: true, data: stats });
   } catch (error) {
-    console.error('Failed to get nginx stats:', error);
+    console.error(`[Stats API] ✗ 获取Nginx状态失败 - serverId: ${serverId}, 错误: ${error.message}`);
     res.json({ 
       success: true,
       data: {

@@ -1,96 +1,13 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs-extra');
-const { Client } = require('ssh2');
 const { db } = require('../database');
 const { authMiddleware, requirePermission } = require('../middleware/auth');
-const { readLogLines, readLogLinesWithPattern, tailLogLines, getLogFileSize } = require('../utils/logReader');
+const { getServer, executeRemoteCommand } = require('../utils/ssh');
 
 const router = express.Router();
 
 router.use(authMiddleware);
-
-const executeRemoteCommand = (server, command) => {
-  return new Promise((resolve, reject) => {
-    const conn = new Client();
-    
-    let output = '';
-    let error = '';
-    let commandTimeout;
-
-    const finalCommand = server.use_sudo ? `sudo ${command}` : command;
-
-    conn.on('ready', () => {
-      conn.exec(finalCommand, (err, stream) => {
-        if (err) {
-          if (commandTimeout) {
-            clearTimeout(commandTimeout);
-          }
-          conn.end();
-          return reject(err);
-        }
-
-        stream.on('data', (data) => {
-          output += data.toString();
-        });
-
-        stream.stderr.on('data', (data) => {
-          error += data.toString();
-        });
-
-        stream.on('close', (code) => {
-          if (commandTimeout) {
-            clearTimeout(commandTimeout);
-          }
-          conn.end();
-          if (code !== 0) {
-            reject(new Error(error || output));
-          } else {
-            resolve({ output, error });
-          }
-        });
-      });
-    });
-
-    conn.on('error', (err) => {
-      if (commandTimeout) {
-        clearTimeout(commandTimeout);
-      }
-      reject(err);
-    });
-
-    const config = {
-      host: server.host,
-      port: server.port || 22,
-      username: server.username,
-      readyTimeout: 60000,
-      connectTimeout: 60000,
-      keepaliveInterval: 30000,
-    };
-
-    if (server.password) {
-      config.password = server.password;
-    } else if (server.private_key) {
-      config.privateKey = server.private_key;
-    }
-
-    commandTimeout = setTimeout(() => {
-      conn.end();
-      reject(new Error('Command execution timeout'));
-    }, 120000);
-
-    conn.connect(config);
-  });
-};
-
-const getServer = (serverId) => {
-  if (!serverId) return null;
-  const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(serverId);
-  if (server && server.is_default) {
-    return null;
-  }
-  return server;
-};
 
 const getLogPath = () => {
   if (process.env.NODE_ENV === 'development') {
@@ -170,22 +87,28 @@ router.get('/files', requirePermission('log:read'), async (req, res) => {
     if (server) {
       const logPath = server.nginx_log_path || '/var/log/nginx';
       const { output } = await executeRemoteCommand(server, `find ${logPath} -maxdepth 1 -type f \\( -name "*.log" -o -name "*log*" \\) -exec stat -c "%n %s %Y" {} \\;`);
-      const lines = output.trim().split('\n').filter(line => line.trim());
       
-      logFiles = lines.map(line => {
-        const parts = line.trim().split(' ');
-        const filePath = parts[0];
-        const size = parseInt(parts[1]) || 0;
-        const timestamp = parseInt(parts[2]) || Date.now();
-        const fileName = path.basename(filePath);
+      if (!output) {
+        console.log('No output from log files command');
+        logFiles = [];
+      } else {
+        const lines = output.trim().split('\n').filter(line => line.trim());
         
-        return {
-          name: fileName,
-          path: filePath,
-          size: size,
-          lastModified: new Date(timestamp * 1000),
-        };
-      });
+        logFiles = lines.map(line => {
+          const parts = line.trim().split(' ');
+          const filePath = parts[0];
+          const size = parseInt(parts[1]) || 0;
+          const timestamp = parseInt(parts[2]) || Date.now();
+          const fileName = path.basename(filePath);
+          
+          return {
+            name: fileName,
+            path: filePath,
+            size: size,
+            lastModified: new Date(timestamp * 1000),
+          };
+        });
+      }
     } else {
       logFiles = getAvailableLogFiles();
     }
@@ -204,66 +127,33 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
   const { serverId } = req.query;
   const server = getServer(serverId);
 
+  console.log(`[Logs API] GET /logs/access - serverId: ${serverId || 'null'}, file: ${logFile}, lines: ${lines}, keyword: ${keyword || 'none'}`);
+
   try {
     let content = '';
     let totalLines = 0;
     let allLogLines = [];
     let stats = { success: 0, error: 0, redirect: 0, statusCodes: {}, methods: {} };
+    const apiStartTime = Date.now();
 
     if (server) {
+      console.log(`[Logs API] 使用远程服务器 - ID: ${server.id}, 名称: ${server.name}, 主机: ${server.host}:${server.port}`);
       const logPath = server.nginx_log_path || '/var/log/nginx';
       const accessLogPath = `${logPath}/${logFile}`;
-      const { output: totalOutput } = await executeRemoteCommand(server, `wc -l ${accessLogPath} 2>/dev/null || echo "0"`);
-      totalLines = parseInt(totalOutput.trim().split(' ')[0]) || 0;
+      console.log(`[Logs API] 远程日志路径: ${accessLogPath}`);
       
-      const linesToRead = keyword && keyword.trim() ? Math.min(totalLines, 10000) : lines * 2;
+      const readStartTime = Date.now();
+      const linesToRead = keyword && keyword.trim() ? Math.min(10000, lines * 2) : Math.min(5000, lines * 2);
+      console.log(`[Logs API] 开始读取日志 - 行数: ${linesToRead}`);
+      
       const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n ${linesToRead} ${accessLogPath}`);
-      content = output;
+      content = output || '';
       allLogLines = content ? content.trim().split('\n').filter(line => line.trim()) : [];
       
-      const { output: grepOutput } = await executeRemoteCommand(server, `grep -oE '" [0-9]{3}' ${accessLogPath} 2>/dev/null | cut -d' ' -f2 | sort | uniq -c`);
-      if (grepOutput) {
-        const grepLines = grepOutput.trim().split('\n');
-        grepLines.forEach(line => {
-          const match = line.trim().match(/^(\d+)\s+([0-9]{3})/);
-          if (match) {
-            const count = parseInt(match[1]);
-            const code = match[2];
-            if (code.startsWith('2')) {
-              stats.success += count;
-            } else if (code.startsWith('3')) {
-              stats.redirect += count;
-            } else if (code.startsWith('4') || code.startsWith('5')) {
-              stats.error += count;
-            }
-            stats.statusCodes[code] = (stats.statusCodes[code] || 0) + count;
-          }
-        });
-      }
+      const readElapsedTime = Date.now() - readStartTime;
+      console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 行数: ${allLogLines.length}`);
       
-      const { output: methodOutput } = await executeRemoteCommand(server, `grep -oE '"[A-Z]+ [^"]+"' ${accessLogPath} 2>/dev/null | cut -d' ' -f1 | tr -d '"' | sort | uniq -c`);
-      if (methodOutput) {
-        const methodLines = methodOutput.trim().split('\n');
-        methodLines.forEach(line => {
-          const match = line.trim().match(/^(\d+)\s+([A-Z]+)/);
-          if (match) {
-            const count = parseInt(match[1]);
-            const method = match[2];
-            stats.methods[method] = (stats.methods[method] || 0) + count;
-          }
-        });
-      }
-    } else {
-      const logPath = getLogPath();
-      const accessLogPath = path.join(logPath, logFile);
-
-      if (!fs.existsSync(accessLogPath)) {
-        return res.json({ logs: '', total: 0, filteredTotal: 0, stats });
-      }
-
-      allLogLines = await readLogLines(accessLogPath, 10000, false);
-      totalLines = allLogLines.length;
-      
+      const parseStartTime = Date.now();
       allLogLines.forEach(line => {
         const match = line.match(/" (\d{3})/);
         if (match) {
@@ -284,6 +174,52 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
           stats.methods[method] = (stats.methods[method] || 0) + 1;
         }
       });
+      
+      const parseElapsedTime = Date.now() - parseStartTime;
+      console.log(`[Logs API] ✓ 日志解析完成 - 耗时: ${parseElapsedTime}ms`);
+      
+      totalLines = allLogLines.length;
+    } else {
+      console.log(`[Logs API] 使用本地服务器`);
+      const logPath = getLogPath();
+      const accessLogPath = path.join(logPath, logFile);
+
+      if (!fs.existsSync(accessLogPath)) {
+        console.log(`[Logs API] 日志文件不存在: ${accessLogPath}`);
+        return res.json({ logs: '', total: 0, filteredTotal: 0, stats });
+      }
+
+      const readStartTime = Date.now();
+      allLogLines = await readLogLines(accessLogPath, 10000, false);
+      totalLines = allLogLines.length;
+      
+      const readElapsedTime = Date.now() - readStartTime;
+      console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 行数: ${allLogLines.length}`);
+      
+      const parseStartTime = Date.now();
+      allLogLines.forEach(line => {
+        const match = line.match(/" (\d{3})/);
+        if (match) {
+          const status = match[1];
+          if (status.startsWith('2')) {
+            stats.success++;
+          } else if (status.startsWith('3')) {
+            stats.redirect++;
+          } else if (status.startsWith('4') || status.startsWith('5')) {
+            stats.error++;
+          }
+          stats.statusCodes[status] = (stats.statusCodes[status] || 0) + 1;
+        }
+        
+        const methodMatch = line.match(/"([A-Z]+) /);
+        if (methodMatch) {
+          const method = methodMatch[1];
+          stats.methods[method] = (stats.methods[method] || 0) + 1;
+        }
+      });
+      
+      const parseElapsedTime = Date.now() - parseStartTime;
+      console.log(`[Logs API] ✓ 日志解析完成 - 耗时: ${parseElapsedTime}ms`);
     }
 
     const logLines = allLogLines;
@@ -298,6 +234,10 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
     }
 
     const lastLines = filteredLogs.slice(-lines);
+    
+    const totalElapsedTime = Date.now() - apiStartTime;
+    console.log(`[Logs API] ✓ 访问日志获取完成 - 总耗时: ${totalElapsedTime}ms, 返回行数: ${lastLines.length}`);
+    
     res.json({ 
       success: true,
       data: {
@@ -309,7 +249,7 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error reading access log:', error);
+    console.error(`[Logs API] ✗ 访问日志获取失败 - 错误: ${error.message}`);
     res.json({ 
       success: true,
       data: {
@@ -329,51 +269,72 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
   const { serverId } = req.query;
   const server = getServer(serverId);
 
+  console.log(`[Logs API] GET /logs/error - serverId: ${serverId || 'null'}, file: ${logFile}, lines: ${lines}, keyword: ${keyword || 'none'}`);
+
   try {
     let content = '';
     let totalLines = 0;
     let stats = { total: 0, error: 0, warn: 0, info: 0 };
+    const apiStartTime = Date.now();
 
     if (server) {
+      console.log(`[Logs API] 使用远程服务器 - ID: ${server.id}, 名称: ${server.name}, 主机: ${server.host}:${server.port}`);
       const logPath = server.nginx_log_path || '/var/log/nginx';
       const errorLogPath = `${logPath}/${logFile}`;
-      const { output: totalOutput } = await executeRemoteCommand(server, `wc -l ${errorLogPath} 2>/dev/null || echo "0"`);
-      totalLines = parseInt(totalOutput.trim().split(' ')[0]) || 0;
+      console.log(`[Logs API] 远程日志路径: ${errorLogPath}`);
       
-      const linesToRead = keyword && keyword.trim() ? Math.min(totalLines, 10000) : lines * 2;
+      const readStartTime = Date.now();
+      const linesToRead = Math.min(5000, lines * 2);
+      console.log(`[Logs API] 开始读取日志 - 行数: ${linesToRead}`);
+      
       const { output } = await executeRemoteCommand(server, `test -f ${errorLogPath} && tail -n ${linesToRead} ${errorLogPath}`);
-      content = output;
+      content = output || '';
       
-      const { output: grepOutput } = await executeRemoteCommand(server, `grep -oE '\\[(error|warn|info|debug)\\]' ${errorLogPath} 2>/dev/null | sort | uniq -c`);
-      if (grepOutput) {
-        const grepLines = grepOutput.trim().split('\n');
-        grepLines.forEach(line => {
-          const match = line.trim().match(/^(\d+)\s+\[(\w+)\]/);
-          if (match) {
-            const count = parseInt(match[1]);
-            const level = match[2].toLowerCase();
-            stats.total += count;
-            if (level === 'error') {
-              stats.error += count;
-            } else if (level === 'warn') {
-              stats.warn += count;
-            } else if (level === 'info') {
-              stats.info += count;
-            }
+      const readElapsedTime = Date.now() - readStartTime;
+      console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 内容长度: ${content.length} bytes`);
+      
+      const parseStartTime = Date.now();
+      const logLines = content.split('\n').filter(line => line.trim());
+      totalLines = logLines.length;
+      
+      logLines.forEach(line => {
+        const match = line.match(/\[(error|warn|info|debug)\]/);
+        if (match) {
+          const level = match[1].toLowerCase();
+          stats.total++;
+          if (level === 'error') {
+            stats.error++;
+          } else if (level === 'warn') {
+            stats.warn++;
+          } else if (level === 'info') {
+            stats.info++;
           }
-        });
-      }
+        }
+      });
+      
+      const parseElapsedTime = Date.now() - parseStartTime;
+      console.log(`[Logs API] ✓ 日志解析完成 - 耗时: ${parseElapsedTime}ms`);
     } else {
+      console.log(`[Logs API] 使用本地服务器`);
       const logPath = getLogPath();
       const errorLogPath = path.join(logPath, logFile);
 
       if (!fs.existsSync(errorLogPath)) {
+        console.log(`[Logs API] 日志文件不存在: ${errorLogPath}`);
         return res.json({ success: true, data: { logs: '', total: 0, filteredTotal: 0, stats } });
       }
 
-      const allLogLines = await readLogLines(errorLogPath, 10000, false);
+      const readStartTime = Date.now();
+      const linesToRead = Math.min(5000, lines * 2);
+      console.log(`[Logs API] 开始读取日志 - 行数: ${linesToRead}`);
+      
+      const allLogLines = await readLogLines(errorLogPath, linesToRead, false);
       totalLines = allLogLines.length;
       
+      const readElapsedTime = Date.now() - readStartTime;
+      console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 行数: ${allLogLines.length}`);
+      
+      const parseStartTime = Date.now();
       allLogLines.forEach(line => {
         const match = line.match(/\[(error|warn|info|debug)\]/i);
         if (match) {
@@ -388,9 +349,12 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
           }
         }
       });
+      
+      const parseElapsedTime = Date.now() - parseStartTime;
+      console.log(`[Logs API] ✓ 日志解析完成 - 耗时: ${parseElapsedTime}ms`);
     }
 
-    const logLines = allLogLines;
+    const logLines = content ? content.split('\n').filter(line => line.trim()) : [];
 
     let filteredLogs = logLines;
     if (keyword && keyword.trim()) {
@@ -402,6 +366,10 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
     }
 
     const lastLines = filteredLogs.slice(-lines);
+    
+    const totalElapsedTime = Date.now() - apiStartTime;
+    console.log(`[Logs API] ✓ 错误日志获取完成 - 总耗时: ${totalElapsedTime}ms, 返回行数: ${lastLines.length}`);
+    
     res.json({ 
       success: true,
       data: {
@@ -413,7 +381,7 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error reading error log:', error);
+    console.error(`[Logs API] ✗ 错误日志获取失败 - 错误: ${error.message}`);
     res.json({ 
       success: true,
       data: {
@@ -435,33 +403,60 @@ router.get('/traffic', requirePermission('log:read'), async (req, res) => {
   const now = new Date();
   const startTime = new Date(now.getTime() - hoursToAnalyze * 60 * 60 * 1000);
 
-  console.log('[Traffic] Request params:', { serverId, logFile, hoursToAnalyze, startTime });
-  console.log('[Traffic] Server:', server ? `${server.name} (${server.host})` : 'null (using local logs)');
+  console.log(`[Traffic API] GET /logs/traffic - serverId: ${serverId || 'null'}, file: ${logFile}, hours: ${hoursToAnalyze}`);
+  console.log(`[Traffic API] 分析时间范围: ${startTime.toISOString()} 到 ${now.toISOString()}`);
 
   try {
     let content = '';
     let totalBytes = 0;
     let requestCount = 0;
+    const apiStartTime = Date.now();
 
     if (server) {
+      console.log(`[Traffic API] 使用远程服务器 - ID: ${server.id}, 名称: ${server.name}, 主机: ${server.host}:${server.port}`);
       const logPath = server.nginx_log_path || '/var/log/nginx';
       const accessLogPath = `${logPath}/${logFile}`;
-      console.log('[Traffic] Remote log path:', accessLogPath);
-      const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n 100000 ${accessLogPath} 2>/dev/null || echo ""`);
-      content = output;
+      console.log(`[Traffic API] 远程日志路径: ${accessLogPath}`);
+      
+      const readStartTime = Date.now();
+      const maxLines = Math.min(50000, hoursToAnalyze * 2000);
+      console.log(`[Traffic API] 开始读取日志 - 最大行数: ${maxLines}`);
+      
+      const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n ${maxLines} ${accessLogPath} 2>/dev/null || echo ""`);
+      content = output || '';
+      
+      const readElapsedTime = Date.now() - readStartTime;
+      console.log(`[Traffic API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 内容长度: ${content.length} bytes`);
     } else {
+      console.log(`[Traffic API] 使用本地服务器`);
       const logPath = getLogPath();
       const accessLogPath = path.join(logPath, logFile);
-      console.log('[Traffic] Local log path:', accessLogPath);
-      console.log('[Traffic] Log file exists:', fs.existsSync(accessLogPath));
+      console.log(`[Traffic API] 本地日志路径: ${accessLogPath}`);
+      
       if (fs.existsSync(accessLogPath)) {
+        const readStartTime = Date.now();
+        const maxLines = Math.min(50000, hoursToAnalyze * 2000);
+        console.log(`[Traffic API] 开始读取日志 - 最大行数: ${maxLines}`);
+        
         content = fs.readFileSync(accessLogPath, 'utf-8');
-        console.log('[Traffic] Log content length:', content.length);
+        
+        const lines = content.split('\n');
+        if (lines.length > maxLines) {
+          content = lines.slice(-maxLines).join('\n');
+        }
+        
+        const readElapsedTime = Date.now() - readStartTime;
+        console.log(`[Traffic API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 内容长度: ${content.length} bytes`);
+      } else {
+        console.log(`[Traffic API] 日志文件不存在: ${accessLogPath}`);
       }
     }
 
     const logLines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
-    console.log('[Traffic] Total log lines (filtered):', logLines.length);
+    console.log(`[Traffic API] 过滤后的日志行数: ${logLines.length}`);
+    
+    const parseStartTime = Date.now();
+    let processedLines = 0;
     
     logLines.forEach((line) => {
       const regex = /^(\S+) \S+ \S+ \[([^\]]+)\] "(\S+) (\S+) (\S+)" (\d+) (\d+)(?: "([^"]*)"(?: "([^"]*)")?)?/;
@@ -480,13 +475,22 @@ router.get('/traffic', requirePermission('log:read'), async (req, res) => {
           }
         }
       }
+      
+      processedLines++;
+      if (processedLines % 10000 === 0) {
+        console.log(`[Traffic API] 已处理 ${processedLines}/${logLines.length} 行日志...`);
+      }
     });
 
-    console.log('[Traffic] Results:', { requestCount, totalBytes });
+    const parseElapsedTime = Date.now() - parseStartTime;
+    console.log(`[Traffic API] ✓ 日志解析完成 - 耗时: ${parseElapsedTime}ms, 处理行数: ${processedLines}`);
 
     const avgBytes = requestCount > 0 ? Math.round(totalBytes / requestCount) : 0;
     const totalMB = (totalBytes / (1024 * 1024)).toFixed(2);
     const totalGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(2);
+
+    const totalElapsedTime = Date.now() - apiStartTime;
+    console.log(`[Traffic API] ✓ 流量统计完成 - 总耗时: ${totalElapsedTime}ms, 请求数: ${requestCount}, 总流量: ${totalMB}MB`);
 
     res.json({
       success: true,
@@ -500,7 +504,8 @@ router.get('/traffic', requirePermission('log:read'), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[Traffic] Error:', error);
+    const elapsedTime = Date.now();
+    console.error(`[Traffic API] ✗ 流量统计失败 - 耗时: ${elapsedTime}ms, 错误: ${error.message}`);
     res.json({
       success: true,
       data: {

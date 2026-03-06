@@ -4,93 +4,11 @@ const fs = require('fs-extra');
 const { db } = require('../database');
 const { authMiddleware, requirePermission } = require('../middleware/auth');
 const glob = require('glob');
-const { Client } = require('ssh2');
+const { getServer, executeRemoteCommand } = require('../utils/ssh');
 
 const router = express.Router();
 
 router.use(authMiddleware);
-
-const executeRemoteCommand = (server, command) => {
-  return new Promise((resolve, reject) => {
-    const conn = new Client();
-    
-    let output = '';
-    let error = '';
-    let commandTimeout;
-
-    const finalCommand = server.use_sudo ? `sudo ${command}` : command;
-
-    conn.on('ready', () => {
-      conn.exec(finalCommand, (err, stream) => {
-        if (err) {
-          if (commandTimeout) {
-            clearTimeout(commandTimeout);
-          }
-          conn.end();
-          return reject(err);
-        }
-
-        stream.on('data', (data) => {
-          output += data.toString();
-        });
-
-        stream.stderr.on('data', (data) => {
-          error += data.toString();
-        });
-
-        stream.on('close', (code) => {
-          if (commandTimeout) {
-            clearTimeout(commandTimeout);
-          }
-          conn.end();
-          if (code !== 0) {
-            reject(new Error(error || output));
-          } else {
-            resolve({ output, error });
-          }
-        });
-      });
-    });
-
-    conn.on('error', (err) => {
-      if (commandTimeout) {
-        clearTimeout(commandTimeout);
-      }
-      reject(err);
-    });
-
-    const config = {
-      host: server.host,
-      port: server.port || 22,
-      username: server.username,
-      readyTimeout: 60000,
-      connectTimeout: 60000,
-      keepaliveInterval: 30000,
-    };
-
-    if (server.password) {
-      config.password = server.password;
-    } else if (server.private_key) {
-      config.privateKey = server.private_key;
-    }
-
-    commandTimeout = setTimeout(() => {
-      conn.end();
-      reject(new Error('Command execution timeout'));
-    }, 120000);
-
-    conn.connect(config);
-  });
-};
-
-const getServer = (serverId) => {
-  if (!serverId) return null;
-  const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(serverId);
-  if (server && server.is_default) {
-    return null;
-  }
-  return server;
-};
 
 const getConfigPath = () => {
   return process.env.NGINX_CONFIG_PATH || '/etc/nginx';
@@ -108,7 +26,7 @@ const parseUpstreams = async (server = null) => {
     if (server) {
       try {
         const { output } = await executeRemoteCommand(server, `cat ${nginxConfPath}`);
-        mainContent = output;
+        mainContent = output || '';
       } catch (error) {
         console.log('Failed to read remote nginx.conf:', error.message);
         return upstreams;
@@ -140,7 +58,7 @@ const parseUpstreams = async (server = null) => {
         if (server) {
           try {
             const { output } = await executeRemoteCommand(server, `find ${includePath.substring(0, includePath.lastIndexOf('/'))} -maxdepth 1 -type f -name "${includePath.substring(includePath.lastIndexOf('/') + 1)}" 2>/dev/null`);
-            expandedFiles = output.trim().split('\n').filter(f => f);
+            expandedFiles = output ? output.trim().split('\n').filter(f => f) : [];
           } catch (error) {
             console.log('Failed to expand wildcard on remote:', error.message);
             expandedFiles = [];
@@ -164,7 +82,7 @@ const parseUpstreams = async (server = null) => {
       if (server) {
         try {
           const { output } = await executeRemoteCommand(server, `cat ${filePath}`);
-          content = output;
+          content = output || '';
         } catch (error) {
           console.log('Failed to read remote file:', filePath, error.message);
           continue;

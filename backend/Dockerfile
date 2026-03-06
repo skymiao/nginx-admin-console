@@ -1,5 +1,5 @@
 # ---------- builder ----------
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -13,23 +13,29 @@ COPY package*.json ./
 ENV BETTER_SQLITE3_BUILD_FROM_SOURCE=0
 ENV npm_config_build_from_source=false
 
+# 配置npm
 RUN npm config set fetch-timeout 600000 \
- && npm config set fetch-retries 5 \
+ && npm config set fetch-retries 10 \
  && npm config set fetch-retry-mintimeout 30000 \
  && npm config set fetch-retry-maxtimeout 180000 \
- && npm install --registry=https://registry.npmmirror.com \
- && npm prune --production \
+ && npm config set registry https://registry.npmmirror.com \
+ && npm config set strict-ssl false
+
+# 安装依赖
+RUN npm install \
  && npm cache clean --force
 
 COPY src ./src
 
 # ---------- runtime ----------
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 ENV NODE_ENV=production
 
 RUN apk add --no-cache nginx curl
+
+RUN mkdir -p /app/data
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src

@@ -15,9 +15,9 @@ services:
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3001}
       - NGINX_CONFIG_PATH=/etc/nginx
       - NGINX_LOG_PATH=/var/log/nginx
-      - DB_PATH=/tmp/nginx-admin.db
+      - DB_PATH=/app/data/nginx-admin.db
     volumes:
-      - /root/test/nginx-data:/tmp
+      - /root/test/nginx-data:/app/data
       - /etc/nginx:/etc/nginx
       - /var/log/nginx:/var/log/nginx
     networks:

@@ -1,96 +1,13 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs-extra');
-const { Client } = require('ssh2');
 const { db } = require('../database');
 const { authMiddleware, requirePermission } = require('../middleware/auth');
+const { getServer, executeRemoteCommand } = require('../utils/ssh');
 
 const router = express.Router();
 
 router.use(authMiddleware);
-
-const executeRemoteCommand = (server, command) => {
-  return new Promise((resolve, reject) => {
-    const conn = new Client();
-    
-    let output = '';
-    let error = '';
-    let commandTimeout;
-
-    const finalCommand = server.use_sudo ? `sudo ${command}` : command;
-
-    conn.on('ready', () => {
-      conn.exec(finalCommand, (err, stream) => {
-        if (err) {
-          if (commandTimeout) {
-            clearTimeout(commandTimeout);
-          }
-          conn.end();
-          return reject(err);
-        }
-
-        stream.on('data', (data) => {
-          output += data.toString();
-        });
-
-        stream.stderr.on('data', (data) => {
-          error += data.toString();
-        });
-
-        stream.on('close', (code) => {
-          if (commandTimeout) {
-            clearTimeout(commandTimeout);
-          }
-          conn.end();
-          if (code !== 0) {
-            reject(new Error(error || output));
-          } else {
-            resolve({ output, error });
-          }
-        });
-      });
-    });
-
-    conn.on('error', (err) => {
-      if (commandTimeout) {
-        clearTimeout(commandTimeout);
-      }
-      reject(err);
-    });
-
-    const config = {
-      host: server.host,
-      port: server.port || 22,
-      username: server.username,
-      readyTimeout: 60000,
-      connectTimeout: 60000,
-      keepaliveInterval: 30000,
-    };
-
-    if (server.password) {
-      config.password = server.password;
-    } else if (server.private_key) {
-      config.privateKey = server.private_key;
-    }
-
-    commandTimeout = setTimeout(() => {
-      conn.end();
-      reject(new Error('Command execution timeout'));
-    }, 120000);
-
-    conn.connect(config);
-  });
-};
-
-const getServer = (serverId) => {
-  if (!serverId || serverId === 'local') {
-    const defaultServer = db.prepare('SELECT * FROM servers WHERE is_default = 1').get();
-    return defaultServer || null;
-  }
-
-  const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(serverId);
-  return server;
-};
 
 const parseAccessLog = (logContent) => {
   const lines = logContent.split('\n').filter(line => line.trim());
@@ -204,7 +121,7 @@ router.get('/statistics', requirePermission('log:read'), async (req, res) => {
       const logPath = server.nginx_log_path || '/var/log/nginx';
       const accessLogPath = path.join(logPath, 'access.log');
       const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n ${lines} ${accessLogPath}`);
-      content = output;
+      content = output || '';
     } else {
       const logPath = process.env.NGINX_LOG_PATH || '/var/log/nginx';
       const accessLogPath = path.join(logPath, 'access.log');
@@ -236,7 +153,7 @@ router.get('/trends', requirePermission('log:read'), async (req, res) => {
       const logPath = server.nginx_log_path || '/var/log/nginx';
       const accessLogPath = path.join(logPath, 'access.log');
       const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n ${lines} ${accessLogPath}`);
-      content = output;
+      content = output || '';
     } else {
       const logPath = process.env.NGINX_LOG_PATH || '/var/log/nginx';
       const accessLogPath = path.join(logPath, 'access.log');

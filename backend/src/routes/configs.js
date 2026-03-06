@@ -2,101 +2,13 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs-extra');
 const { exec } = require('child_process');
-const { Client } = require('ssh2');
 const { db } = require('../database');
 const { authMiddleware, requirePermission } = require('../middleware/auth');
+const { getServer, executeRemoteCommand } = require('../utils/ssh');
 
 const router = express.Router();
 
 router.use(authMiddleware);
-
-const executeRemoteCommand = (server, command) => {
-  return new Promise((resolve, reject) => {
-    const conn = new Client();
-    
-    let output = '';
-    let error = '';
-    let commandTimeout;
-
-    let finalCommand;
-    if (server.use_sudo) {
-      if (command.includes('|')) {
-        finalCommand = `sudo bash -c '${command}'`;
-      } else {
-        finalCommand = `sudo ${command}`;
-      }
-    } else {
-      finalCommand = command;
-    }
-
-    conn.on('ready', () => {
-      conn.exec(finalCommand, (err, stream) => {
-        if (err) {
-          conn.end();
-          return reject(err);
-        }
-
-        stream.on('data', (data) => {
-          output += data.toString();
-        });
-
-        stream.stderr.on('data', (data) => {
-          error += data.toString();
-        });
-
-        stream.on('close', (code) => {
-          if (commandTimeout) {
-            clearTimeout(commandTimeout);
-          }
-          conn.end();
-          if (code !== 0) {
-            reject(new Error(error || output));
-          } else {
-            resolve({ output, error });
-          }
-        });
-      });
-    });
-
-    conn.on('error', (err) => {
-      if (commandTimeout) {
-        clearTimeout(commandTimeout);
-      }
-      reject(err);
-    });
-
-    const config = {
-      host: server.host,
-      port: server.port || 22,
-      username: server.username,
-      readyTimeout: 60000,
-      connectTimeout: 60000,
-      keepaliveInterval: 30000,
-    };
-
-    if (server.password) {
-      config.password = server.password;
-    } else if (server.private_key) {
-      config.privateKey = server.private_key;
-    }
-
-    commandTimeout = setTimeout(() => {
-      conn.end();
-      reject(new Error('Command execution timeout'));
-    }, 120000);
-
-    conn.connect(config);
-  });
-};
-
-const getServer = (serverId) => {
-  if (!serverId) return null;
-  const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(serverId);
-  if (server && server.is_default) {
-    return null;
-  }
-  return server;
-};
 
 const checkAndFixNginxPid = () => {
   return new Promise((resolve, reject) => {
@@ -154,6 +66,11 @@ const getLogPath = () => {
 
 const recordHistory = (configPath, action, operator, content, comment) => {
   try {
+    if (!db) {
+      console.error('Database is not available for recording history');
+      return;
+    }
+    
     const enableHistory = db.prepare('SELECT value FROM settings WHERE key = ?').get('enable_history');
     console.log('recordHistory called:', { configPath, action, operator, enableHistory });
     if (enableHistory && enableHistory.value === '1') {
@@ -171,11 +88,16 @@ const recordHistory = (configPath, action, operator, content, comment) => {
 
 router.get('/', requirePermission('config:read'), async (req, res) => {
   const { serverId } = req.query;
+  console.log(`[Configs API] GET /configs - serverId: ${serverId || 'null'}`);
+  
   const server = getServer(serverId);
 
   if (server) {
+    console.log(`[Configs API] 使用远程服务器 - ID: ${server.id}, 名称: ${server.name}, 主机: ${server.host}:${server.port}`);
+    
     try {
       const configPath = server.nginx_config_path || '/etc/nginx';
+      console.log(`[Configs API] 配置文件路径: ${configPath}`);
       const configs = [];
 
       const commands = [
@@ -185,12 +107,23 @@ router.get('/', requirePermission('config:read'), async (req, res) => {
 
       for (const cmd of commands) {
         try {
+          console.log(`[Configs API] 执行命令: ${cmd}`);
           const { output } = await executeRemoteCommand(server, cmd);
+          if (!output) {
+            console.log(`[Configs API] 命令无输出: ${cmd}`);
+            continue;
+          }
           const lines = output.trim().split('\n').filter(line => line.trim());
+          console.log(`[Configs API] 找到 ${lines.length} 个配置文件`);
           
           for (const filePath of lines) {
             try {
+              console.log(`[Configs API] 获取文件信息: ${filePath}`);
               const { output: statOutput } = await executeRemoteCommand(server, `stat -c "%s %Y" ${filePath}`);
+              if (!statOutput) {
+                console.log(`[Configs API] stat命令无输出: ${filePath}`);
+                continue;
+              }
               const [size, timestamp] = statOutput.trim().split(' ');
               
               const fileName = path.basename(filePath);
@@ -205,32 +138,36 @@ router.get('/', requirePermission('config:read'), async (req, res) => {
                 type: isMainConfig ? 'main' : 'sub',
               });
             } catch (err) {
-              console.log('Failed to process file:', filePath, err.message);
+              console.log(`[Configs API] 处理文件失败: ${filePath}, 错误: ${err.message}`);
             }
           }
         } catch (err) {
-          console.log('Command failed:', cmd, err.message);
+          console.log(`[Configs API] 命令执行失败: ${cmd}, 错误: ${err.message}`);
         }
       }
 
+      console.log(`[Configs API] ✓ 获取配置文件成功 - 总数: ${configs.length}`);
       res.json({ success: true, data: configs });
     } catch (error) {
-      console.error('Remote config list error:', error);
+      console.error(`[Configs API] ✗ 获取远程配置文件失败 - 错误: ${error.message}`);
       res.status(500).json({ success: false, message: '获取远程配置文件失败', error: error.message });
     }
   } else {
+    console.log(`[Configs API] 使用本地服务器`);
     const configPath = getConfigPath();
     const configs = [];
 
-    console.log('Reading config path:', configPath);
+    console.log(`[Configs API] 读取配置路径: ${configPath}`);
 
     try {
       if (!fs.existsSync(configPath)) {
-        console.log('Config path does not exist:', configPath);
+        console.log(`[Configs API] 配置路径不存在: ${configPath}`);
         return res.json({ success: true, data: [] });
       }
 
       const files = fs.readdirSync(configPath);
+      console.log(`[Configs API] 找到 ${files.length} 个文件`);
+      
       files.forEach(file => {
         const filePath = path.join(configPath, file);
         const stats = fs.statSync(filePath);
@@ -287,7 +224,7 @@ router.get('/content', requirePermission('config:read'), async (req, res) => {
   if (server) {
     try {
       const { output } = await executeRemoteCommand(server, `cat ${configPath}`);
-      res.json({ success: true, data: { content: output } });
+      res.json({ success: true, data: { content: output || '' } });
     } catch (error) {
       console.error('Remote config read error:', error);
       res.status(500).json({ success: false, message: '读取远程配置文件失败', error: error.message });
@@ -505,7 +442,7 @@ router.post('/validate', requirePermission('config:write'), async (req, res) => 
         
         await executeRemoteCommand(server, `rm -f ${tempConfigPath}`);
         
-        const combinedOutput = output + error;
+        const combinedOutput = (output || '') + (error || '');
         console.log(`[Config Validate] Nginx test output: ${combinedOutput}`);
         
         if (combinedOutput.includes('successful') || combinedOutput.includes('syntax is ok')) {
@@ -608,12 +545,15 @@ router.post('/apply', requirePermission('config:apply'), async (req, res) => {
       console.log('Step 1: Validating nginx configuration on remote server...');
       const { output, error } = await executeRemoteCommand(server, `nginx -t -c ${configPath}/nginx.conf 2>&1`);
       
-      if (error && !output.includes('successful') && !output.includes('syntax is ok')) {
-        console.error('Nginx configuration test failed:', error);
+      const outputStr = output || '';
+      const errorStr = error || '';
+      
+      if (errorStr && !outputStr.includes('successful') && !outputStr.includes('syntax is ok')) {
+        console.error('Nginx configuration test failed:', errorStr);
         return res.status(500).json({ 
           success: false,
           message: '配置验证失败，无法应用', 
-          error: error || output 
+          error: errorStr || outputStr 
         });
       }
 

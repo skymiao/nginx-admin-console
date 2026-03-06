@@ -1,11 +1,20 @@
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install --registry=https://registry.npmmirror.com && \
-    npm cache clean --force
+# 配置npm
+RUN npm config set fetch-timeout 600000 \
+ && npm config set fetch-retries 10 \
+ && npm config set fetch-retry-mintimeout 30000 \
+ && npm config set fetch-retry-maxtimeout 180000 \
+ && npm config set registry https://registry.npmmirror.com \
+ && npm config set strict-ssl false
+
+# 安装依赖
+RUN npm install \
+ && npm cache clean --force
 
 COPY . .
 
