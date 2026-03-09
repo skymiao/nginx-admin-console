@@ -117,10 +117,10 @@ const getOrCreatePool = (server) => {
 
         if (server.private_key) {
           config.privateKey = server.private_key;
-          console.log(`[SSH Pool] 使用私钥认证 - 服务器: ${key}, 私钥长度: ${server.private_key.length} bytes`);
+          // console.log(`[SSH Pool] 使用私钥认证 - 服务器: ${key}, 私钥长度: ${server.private_key.length} bytes`);
         } else if (server.password) {
           config.password = server.password;
-          console.log(`[SSH Pool] 使用密码认证 - 服务器: ${key}, 密码长度: ${server.password.length} bytes`);
+          // console.log(`[SSH Pool] 使用密码认证 - 服务器: ${key}, 密码长度: ${server.password.length} bytes`);
         } else {
           console.error(`[SSH Pool] ✗ 未提供认证凭据 - 服务器: ${key}`);
           reject(new Error('未提供认证凭据（密码或私钥）'));

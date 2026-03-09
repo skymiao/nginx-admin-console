@@ -6,7 +6,7 @@ const executeRemoteCommand = async (server, command) => {
   const serverKey = `${server.host}:${server.port}:${server.username}`;
   console.log(`[SSH] 开始执行远程命令 - 服务器: ${serverKey}, 命令: ${command}`);
   
-  console.log(`[SSH] 解密前 - 密码: ${server.password ? server.password.substring(0, 20) + '...' : '未设置'}, 私钥: ${server.private_key ? server.private_key.substring(0, 20) + '...' : '未设置'}`);
+  // console.log(`[SSH] 解密前 - 密码: ${server.password ? server.password.substring(0, 20) + '...' : '未设置'}, 私钥: ${server.private_key ? server.private_key.substring(0, 20) + '...' : '未设置'}`);
   
   const serverWithCredentials = {
     ...server,
@@ -14,11 +14,11 @@ const executeRemoteCommand = async (server, command) => {
     private_key: server.private_key ? decryptPrivateKey(server.private_key) : null,
   };
 
-  console.log(`[SSH] 解密后 - 密码: ${serverWithCredentials.password ? serverWithCredentials.password.substring(0, 20) + '...' : '未设置'}, 私钥: ${serverWithCredentials.private_key ? serverWithCredentials.private_key.substring(0, 20) + '...' : '未设置'}`);
+  // console.log(`[SSH] 解密后 - 密码: ${serverWithCredentials.password ? serverWithCredentials.password.substring(0, 20) + '...' : '未设置'}, 私钥: ${serverWithCredentials.private_key ? serverWithCredentials.private_key.substring(0, 20) + '...' : '未设置'}`);
 
   const authMethod = serverWithCredentials.private_key ? '私钥' : (serverWithCredentials.password ? '密码' : '无');
   console.log(`[SSH] 服务器认证方式: ${authMethod}`);
-  console.log(`[SSH] 凭据解密完成 - 密码: ${serverWithCredentials.password ? '已解密' : '未设置'}, 私钥: ${serverWithCredentials.private_key ? '已解密' : '未设置'}`);
+  // console.log(`[SSH] 凭据解密完成 - 密码: ${serverWithCredentials.password ? '已解密' : '未设置'}, 私钥: ${serverWithCredentials.private_key ? '已解密' : '未设置'}`);
 
   const startTime = Date.now();
   
@@ -54,7 +54,7 @@ const getServer = (serverId) => {
     return null;
   }
   
-  console.log(`[SSH] 解密前 - 密码: ${server.password ? server.password.substring(0, 20) + '...' : '未设置'}, 私钥: ${server.private_key ? server.private_key.substring(0, 20) + '...' : '未设置'}`);
+  // console.log(`[SSH] 解密前 - 密码: ${server.password ? server.password.substring(0, 20) + '...' : '未设置'}, 私钥: ${server.private_key ? server.private_key.substring(0, 20) + '...' : '未设置'}`);
   
   const serverWithCredentials = {
     ...server,
@@ -62,7 +62,7 @@ const getServer = (serverId) => {
     private_key: server.private_key ? decryptPrivateKey(server.private_key) : null,
   };
   
-  console.log(`[SSH] 解密后 - 密码: ${serverWithCredentials.password ? serverWithCredentials.password.substring(0, 20) + '...' : '未设置'}, 私钥: ${serverWithCredentials.private_key ? serverWithCredentials.private_key.substring(0, 20) + '...' : '未设置'}`);
+  // console.log(`[SSH] 解密后 - 密码: ${serverWithCredentials.password ? serverWithCredentials.password.substring(0, 20) + '...' : '未设置'}, 私钥: ${serverWithCredentials.private_key ? serverWithCredentials.private_key.substring(0, 20) + '...' : '未设置'}`);
   
   console.log(`[SSH] ✓ 获取服务器成功 - ID: ${server.id}, 名称: ${server.name}, 主机: ${server.host}:${server.port}`);
   return serverWithCredentials;
