@@ -48,7 +48,18 @@ const getServer = (serverId) => {
     return null;
   }
 
-  const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(serverId);
+  const server = db.prepare(`
+    SELECT s.*, 
+           lf.id as log_format_id,
+           lf.format_name as log_format_name,
+           lf.format_pattern as log_format_pattern,
+           lf.field_mapping as log_format_mapping,
+           lf.description as log_format_description
+    FROM servers s
+    LEFT JOIN server_log_formats lf ON s.log_format_id = lf.id
+    WHERE s.id = ?
+  `).get(serverId);
+  
   if (!server) {
     console.error(`[SSH] ✗ 服务器不存在 - serverId: ${serverId}`);
     return null;
@@ -64,7 +75,7 @@ const getServer = (serverId) => {
   
   // console.log(`[SSH] 解密后 - 密码: ${serverWithCredentials.password ? serverWithCredentials.password.substring(0, 20) + '...' : '未设置'}, 私钥: ${serverWithCredentials.private_key ? serverWithCredentials.private_key.substring(0, 20) + '...' : '未设置'}`);
   
-  console.log(`[SSH] ✓ 获取服务器成功 - ID: ${server.id}, 名称: ${server.name}, 主机: ${server.host}:${server.port}`);
+  console.log(`[SSH] ✓ 获取服务器成功 - ID: ${server.id}, 名称: ${server.name}, 主机: ${server.host}:${server.port}, 日志格式: ${server.log_format_name || '默认'}`);
   return serverWithCredentials;
 };
 

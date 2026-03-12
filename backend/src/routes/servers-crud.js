@@ -26,7 +26,17 @@ router.get('/', requirePermission('server:read'), (req, res) => {
       return res.json({ success: true, data: cached, fromCache: true });
     }
     
-    const servers = db.prepare('SELECT * FROM servers ORDER BY is_default DESC, created_at DESC').all();
+    const servers = db.prepare(`
+      SELECT s.*, 
+             lf.id as log_format_id,
+             lf.format_name as log_format_name,
+             lf.format_pattern as log_format_pattern,
+             lf.field_mapping as log_format_mapping,
+             lf.description as log_format_description
+      FROM servers s
+      LEFT JOIN server_log_formats lf ON s.log_format_id = lf.id
+      ORDER BY s.is_default DESC, s.created_at DESC
+    `).all();
     const decryptedServers = servers.map(formatServer);
     
     cache.set(cacheKey, decryptedServers, 300);
@@ -53,7 +63,7 @@ router.get('/:id', requirePermission('server:read'), (req, res) => {
 
 router.post('/', requirePermission('server:manage'), (req, res) => {
   try {
-    const { name, host, port, username, password, privateKey, description, nginxConfigPath, nginxLogPath, nginxStatusUrl, useSudo } = req.body;
+    const { name, host, port, username, password, privateKey, description, nginxConfigPath, nginxLogPath, nginxStatusUrl, useSudo, logFormatId } = req.body;
 
     if (!name || !host || !username) {
       return res.status(400).json({ success: false, message: '缺少必要参数' });
@@ -67,8 +77,8 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
     const encryptedPrivateKey = privateKey ? encryptPrivateKey(privateKey) : null;
 
     const insertSQL = `
-      INSERT INTO servers (name, host, port, username, password, private_key, description, nginx_config_path, nginx_log_path, nginx_status_url, use_sudo)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO servers (name, host, port, username, password, private_key, description, nginx_config_path, nginx_log_path, nginx_status_url, use_sudo, log_format_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const result = db.prepare(insertSQL).run(
@@ -82,7 +92,8 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
       nginxConfigPath || '/etc/nginx',
       nginxLogPath || '/var/log/nginx',
       nginxStatusUrl || 'http://localhost/nginx_status',
-      useSudo ?1 : 0
+      useSudo ?1 : 0,
+      logFormatId || null
     );
 
     cache.del('servers:list');
@@ -100,7 +111,7 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
 
 router.put('/:id', requirePermission('server:manage'), (req, res) => {
   try {
-    const { name, host, port, username, password, privateKey, description, nginxConfigPath, nginxLogPath, nginxStatusUrl, useSudo } = req.body;
+    const { name, host, port, username, password, privateKey, description, nginxConfigPath, nginxLogPath, nginxStatusUrl, useSudo, logFormatId } = req.body;
 
     const existingServer = db.prepare('SELECT * FROM servers WHERE id = ?').get(req.params.id);
     if (!existingServer) {
@@ -120,7 +131,7 @@ router.put('/:id', requirePermission('server:manage'), (req, res) => {
 
     const updateSQL = `
       UPDATE servers 
-      SET name = ?, host = ?, port = ?, username = ?, password = ?, private_key = ?, description = ?, nginx_config_path = ?, nginx_log_path = ?, nginx_status_url = ?, use_sudo = ?, updated_at = CURRENT_TIMESTAMP
+      SET name = ?, host = ?, port = ?, username = ?, password = ?, private_key = ?, description = ?, nginx_config_path = ?, nginx_log_path = ?, nginx_status_url = ?, use_sudo = ?, log_format_id = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
 
@@ -135,7 +146,8 @@ router.put('/:id', requirePermission('server:manage'), (req, res) => {
       nginxConfigPath !== undefined ? nginxConfigPath : existingServer.nginx_config_path,
       nginxLogPath !== undefined ? nginxLogPath : existingServer.nginx_log_path,
       nginxStatusUrl !== undefined ? nginxStatusUrl : existingServer.nginx_status_url,
-      useSudo !== undefined ? (useSudo ? 1 : 0) : existingServer.use_sudo,
+      useSudo !== undefined ? (useSudo ?1 : 0) : existingServer.use_sudo,
+      logFormatId !== undefined ? logFormatId : existingServer.log_format_id,
       req.params.id
     );
 

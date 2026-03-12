@@ -18,7 +18,7 @@ services:
       - NGINX_LOG_PATH=/var/log/nginx
       - DB_PATH=/app/data/nginx-admin.db
     volumes:
-      - /root/test/nginx-data:/app/data
+      - /data/10.5.0.200-old/test/nginx-data:/app/data
       - /etc/nginx:/etc/nginx
       - /var/log/nginx:/var/log/nginx
     networks:

@@ -8,6 +8,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Select,
   message,
   Tag,
   Tooltip,
@@ -28,7 +29,7 @@ import {
   ThunderboltOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
-import { serverAPI } from '../services/api';
+import { serverAPI, logFormatAPI } from '../services/api';
 
 const Servers = () => {
   const [servers, setServers] = useState([]);
@@ -39,10 +40,12 @@ const Servers = () => {
   const [reloadLoading, setReloadLoading] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [logFormats, setLogFormats] = useState([]);
   const [form] = Form.useForm();
 
   useEffect(() => {
     loadServers();
+    loadLogFormats();
   }, []);
 
   const loadServers = async () => {
@@ -55,6 +58,16 @@ const Servers = () => {
       console.error('Failed to load servers:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadLogFormats = async () => {
+    try {
+      const response = await logFormatAPI.list();
+      const formats = response.data?.data || [];
+      setLogFormats(formats.filter(f => f.is_active));
+    } catch (error) {
+      console.error('Failed to load log formats:', error);
     }
   };
 
@@ -78,6 +91,7 @@ const Servers = () => {
       nginxLogPath: server.nginx_log_path,
       nginxStatusUrl: server.nginx_status_url,
       useSudo: server.use_sudo === 1,
+      logFormatId: server.log_format_id || undefined,
     });
     setModalVisible(true);
   };
@@ -193,6 +207,18 @@ const Servers = () => {
       key: 'nginx_status_url',
       render: (text) => (
         <span style={{ color: '#64748B', fontSize: 13 }}>{text}</span>
+      ),
+    },
+    {
+      title: '日志格式',
+      dataIndex: 'log_format_name',
+      key: 'log_format_name',
+      render: (text) => (
+        text ? (
+          <Tag color="purple" style={{ fontWeight: 500 }}>{text}</Tag>
+        ) : (
+          <Tag color="default" style={{ fontWeight: 500 }}>默认</Tag>
+        )
       ),
     },
     {
@@ -317,7 +343,7 @@ const Servers = () => {
       >
         <Alert
           message="分布式管理"
-          description="添加远程nginx服务器，通过SSH连接管理多个nginx实例的配置文件和服务"
+          description="添加远程nginx服务器，通过SSH连接管理多个nginx实例的配置文件和服务。可以为每个服务器指定日志格式，用于日志查看功能。"
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
@@ -545,6 +571,22 @@ const Servers = () => {
             valuePropName="checked"
           >
             <Switch />
+          </Form.Item>
+          <Form.Item
+            name="logFormatId"
+            label="日志格式"
+            tooltip="为该服务器选择日志解析格式，用于日志查看功能"
+          >
+            <Select
+              placeholder="选择日志格式（默认使用系统默认格式）"
+              allowClear
+            >
+              {logFormats.map(format => (
+                <Select.Option key={format.id} value={format.id}>
+                  {format.format_name} - {format.description}
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
           <Form.Item
             name="description"

@@ -153,6 +153,12 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
       const readElapsedTime = Date.now() - readStartTime;
       console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 行数: ${allLogLines.length}`);
       
+      const countStartTime = Date.now();
+      const { output: countOutput } = await executeRemoteCommand(server, `wc -l ${accessLogPath} 2>/dev/null || echo "0"`);
+      totalLines = parseInt(countOutput.trim()) || 0;
+      const countElapsedTime = Date.now() - countStartTime;
+      console.log(`[Logs API] ✓ 日志总数统计完成 - 耗时: ${countElapsedTime}ms, 总行数: ${totalLines}`);
+      
       const parseStartTime = Date.now();
       allLogLines.forEach(line => {
         const match = line.match(/" (\d{3})/);
@@ -177,8 +183,6 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
       
       const parseElapsedTime = Date.now() - parseStartTime;
       console.log(`[Logs API] ✓ 日志解析完成 - 耗时: ${parseElapsedTime}ms`);
-      
-      totalLines = allLogLines.length;
     } else {
       console.log(`[Logs API] 使用本地服务器`);
       const logPath = getLogPath();
@@ -190,11 +194,12 @@ router.get('/access', requirePermission('log:read'), async (req, res) => {
       }
 
       const readStartTime = Date.now();
+      const fileContent = fs.readFileSync(accessLogPath, 'utf-8');
+      totalLines = fileContent.split('\n').filter(line => line.trim()).length;
       allLogLines = await readLogLines(accessLogPath, 10000, false);
-      totalLines = allLogLines.length;
       
       const readElapsedTime = Date.now() - readStartTime;
-      console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 行数: ${allLogLines.length}`);
+      console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 总行数: ${totalLines}, 读取行数: ${allLogLines.length}`);
       
       const parseStartTime = Date.now();
       allLogLines.forEach(line => {
@@ -293,9 +298,14 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
       const readElapsedTime = Date.now() - readStartTime;
       console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 内容长度: ${content.length} bytes`);
       
+      const countStartTime = Date.now();
+      const { output: countOutput } = await executeRemoteCommand(server, `wc -l ${errorLogPath} 2>/dev/null || echo "0"`);
+      totalLines = parseInt(countOutput.trim()) || 0;
+      const countElapsedTime = Date.now() - countStartTime;
+      console.log(`[Logs API] ✓ 日志总数统计完成 - 耗时: ${countElapsedTime}ms, 总行数: ${totalLines}`);
+      
       const parseStartTime = Date.now();
       const logLines = content.split('\n').filter(line => line.trim());
-      totalLines = logLines.length;
       
       logLines.forEach(line => {
         const match = line.match(/\[(error|warn|info|debug)\]/);
@@ -328,11 +338,12 @@ router.get('/error', requirePermission('log:read'), async (req, res) => {
       const linesToRead = Math.min(5000, lines * 2);
       console.log(`[Logs API] 开始读取日志 - 行数: ${linesToRead}`);
       
+      const fileContent = fs.readFileSync(errorLogPath, 'utf-8');
+      totalLines = fileContent.split('\n').filter(line => line.trim()).length;
       const allLogLines = await readLogLines(errorLogPath, linesToRead, false);
-      totalLines = allLogLines.length;
       
       const readElapsedTime = Date.now() - readStartTime;
-      console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 行数: ${allLogLines.length}`);
+      console.log(`[Logs API] ✓ 日志读取完成 - 耗时: ${readElapsedTime}ms, 总行数: ${totalLines}, 读取行数: ${allLogLines.length}`);
       
       const parseStartTime = Date.now();
       allLogLines.forEach(line => {

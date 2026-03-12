@@ -166,6 +166,26 @@ const LogFormats = () => {
       render: (active) => active ? <Tag color="green">启用</Tag> : <Tag color="red">禁用</Tag>,
     },
     {
+      title: '关联服务器',
+      dataIndex: 'server_ips',
+      key: 'server_ips',
+      width: 150,
+      render: (serverIps) => {
+        if (!serverIps) return <Tag color="default">无</Tag>;
+        try {
+          const ips = typeof serverIps === 'string' ? JSON.parse(serverIps) : serverIps;
+          if (ips.length === 0) return <Tag color="default">无</Tag>;
+          return (
+            <Tooltip title={ips.join(', ')}>
+              <Tag color="blue">{ips.length} 个服务器</Tag>
+            </Tooltip>
+          );
+        } catch (error) {
+          return <Tag color="default">无</Tag>;
+        }
+      },
+    },
+    {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
@@ -280,7 +300,7 @@ const LogFormats = () => {
       >
         <Alert
           message="日志格式说明"
-          description="为不同服务器配置不同的日志解析格式。系统会根据服务器IP自动选择对应的格式进行日志解析。"
+          description="为不同服务器配置不同的日志解析格式。系统会根据服务器自动选择对应的格式进行日志解析。在服务器管理页面也可以为每个服务器单独指定日志格式。"
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
@@ -310,18 +330,19 @@ const LogFormats = () => {
         <Form form={form} layout="vertical">
           <Form.Item
             name="server_ips"
-            label="服务器IP"
+            label="关联服务器"
+            tooltip="选择使用此日志格式的服务器"
             rules={[
-              { required: true, message: '请至少选择一个服务器IP' }
+              { required: true, message: '请至少选择一个服务器' }
             ]}
           >
             <Select
               mode="multiple"
-              placeholder="请选择服务器IP"
+              placeholder="请选择服务器"
               allowClear
             >
               <Select.Option key="default" value="default">
-                <Tag color="blue">默认</Tag>
+                <Tag color="blue">默认服务器</Tag>
               </Select.Option>
               {servers.map(server => (
                 <Select.Option key={server.host} value={server.host}>

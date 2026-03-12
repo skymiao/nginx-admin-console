@@ -18,6 +18,7 @@ const { createServerLogFormatsTable, insertDefaultFormats } = require('./migrati
 const { migrate: addSettingPermissions } = require('./migrations/addSettingPermissions');
 const { migrate: fixLogFormatsDuplicates } = require('./migrations/fixLogFormatsDuplicates');
 const addPerformanceIndexes = require('./migrations/addPerformanceIndexes');
+const { migrate: addLogFormatIdToServers } = require('./migrations/addLogFormatIdToServers');
 const { errorHandler } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 const { getCorsConfig } = require('./utils/corsConfig');
@@ -43,6 +44,7 @@ insertDefaultFormats();
 fixLogFormatsDuplicates();
 addSettingPermissions();
 addPerformanceIndexes();
+addLogFormatIdToServers();
 
 app.use(helmet({
   contentSecurityPolicy: {
