@@ -5,6 +5,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: nginx-admin-console-backend:1.0.0
     container_name: nginx-admin-backend
     restart: unless-stopped
     environment:
@@ -35,6 +36,7 @@ services:
       dockerfile: Dockerfile
       args:
         REACT_APP_API_URL: http://backend:5000
+    image: nginx-admin-console-frontend:1.0.0
     container_name: nginx-admin-frontend
     restart: unless-stopped
     ports:
