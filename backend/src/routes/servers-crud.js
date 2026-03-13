@@ -31,13 +31,25 @@ router.get('/', requirePermission('server:read'), (req, res) => {
              lf.id as log_format_id,
              lf.format_name as log_format_name,
              lf.format_pattern as log_format_pattern,
-             lf.field_mapping as log_format_mapping,
              lf.description as log_format_description
       FROM servers s
       LEFT JOIN server_log_formats lf ON s.log_format_id = lf.id
       ORDER BY s.is_default DESC, s.created_at DESC
     `).all();
-    const decryptedServers = servers.map(formatServer);
+    const decryptedServers = servers.map(server => {
+      const formatted = formatServer(server);
+      if (server.log_format_mapping) {
+        try {
+          formatted.log_format_mapping = JSON.parse(server.log_format_mapping);
+        } catch (error) {
+          console.error('Failed to parse log_format_mapping for server:', server.id, error);
+          formatted.log_format_mapping = [];
+        }
+      } else {
+        formatted.log_format_mapping = [];
+      }
+      return formatted;
+    });
     
     cache.set(cacheKey, decryptedServers, 300);
     
@@ -78,7 +90,7 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
 
     const insertSQL = `
       INSERT INTO servers (name, host, port, username, password, private_key, description, nginx_config_path, nginx_log_path, nginx_status_url, use_sudo, log_format_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const result = db.prepare(insertSQL).run(
@@ -101,10 +113,9 @@ router.post('/', requirePermission('server:manage'), (req, res) => {
     res.status(201).json({ 
       success: true,
       data: { id: result.lastInsertRowid },
-      message: '创建成功' 
     });
   } catch (error) {
-    console.error('Failed to create server:', error);
+    console.error('Error creating server:', error);
     res.status(500).json({ success: false, message: '创建服务器失败', error: error.message });
   }
 });

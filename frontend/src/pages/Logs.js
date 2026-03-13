@@ -41,10 +41,8 @@ import {
   RightOutlined,
   BgColorsOutlined,
   PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
 } from '@ant-design/icons';
-import { logAPI, serverAPI } from '../services/api';
+import { logAPI, serverAPI, logFormatAPI } from '../services/api';
 import VirtualLogList from '../components/VirtualLogList';
 
 const { Option } = Select;
@@ -161,10 +159,7 @@ const Logs = () => {
   const [serversLoading, setServersLoading] = useState(false);
   const [expandedLogs, setExpandedLogs] = useState({});
   const [selectedFormat, setSelectedFormat] = useState('nginx_default');
-  const [customFormats, setCustomFormats] = useState([]);
-  const [formatModalVisible, setFormatModalVisible] = useState(false);
-  const [editingFormat, setEditingFormat] = useState(null);
-  const [formatForm] = Form.useForm();
+  const [logFormats, setLogFormats] = useState({});
   const [selectedColumns, setSelectedColumns] = useState(['ip', 'time', 'method', 'path', 'protocol', 'status', 'size']);
   const [columnModalVisible, setColumnModalVisible] = useState(false);
   const [customColumns, setCustomColumns] = useState([]);
@@ -177,7 +172,7 @@ const Logs = () => {
 
   useEffect(() => {
     loadServers();
-    loadCustomFormats();
+    loadLogFormats();
     loadColumnSettings();
   }, []);
 
@@ -253,6 +248,55 @@ const Logs = () => {
     }
   };
 
+  const loadLogFormats = async () => {
+    try {
+      const response = await logFormatAPI.list();
+      const formats = response.data?.data || [];
+      const formatsMap = {};
+      
+      formats.forEach(format => {
+        try {
+          formatsMap[format.format_name] = {
+            name: format.format_name,
+            pattern: new RegExp(format.format_pattern),
+            description: format.description,
+            fields: format.field_mapping || [],
+            id: format.id,
+            isServerFormat: false,
+          };
+        } catch (error) {
+          console.error('Failed to parse format pattern:', format.format_name, error);
+        }
+      });
+      
+      setLogFormats(formatsMap);
+      
+      const firstFormatKey = Object.keys(formatsMap)[0];
+      if (firstFormatKey) {
+        setSelectedFormat(firstFormatKey);
+      }
+    } catch (error) {
+      console.error('Failed to load log formats:', error);
+    }
+  };
+
+  const handleServerChange = (serverId) => {
+    setSelectedServer(serverId);
+    
+    if (serverId) {
+      const server = servers.find(s => s.id === serverId);
+      if (server && server.log_format_name && logFormats[server.log_format_name]) {
+        setSelectedFormat(server.log_format_name);
+      } else {
+        const firstFormatKey = Object.keys(logFormats)[0];
+        setSelectedFormat(firstFormatKey || 'nginx_default');
+      }
+    } else {
+      const firstFormatKey = Object.keys(logFormats)[0];
+      setSelectedFormat(firstFormatKey || 'nginx_default');
+    }
+  };
+
   const loadLogFiles = async () => {
     try {
       const response = await logAPI.getFiles(selectedServer);
@@ -311,71 +355,8 @@ const Logs = () => {
     }
   };
 
-  const loadCustomFormats = () => {
-    const savedFormats = localStorage.getItem('customLogFormats');
-    if (savedFormats) {
-      try {
-        const formats = JSON.parse(savedFormats);
-        Object.keys(formats).forEach(key => {
-          if (formats[key].pattern) {
-            formats[key].pattern = new RegExp(formats[key].pattern.source);
-          }
-        });
-        setCustomFormats(formats);
-      } catch (error) {
-        console.error('Failed to load custom formats:', error);
-      }
-    }
-  };
-
-  const saveCustomFormats = (formats) => {
-    const formatsToSave = { ...formats };
-    Object.keys(formatsToSave).forEach(key => {
-      if (formatsToSave[key].pattern) {
-        formatsToSave[key] = {
-          ...formatsToSave[key],
-          pattern: {
-            source: formatsToSave[key].pattern.source,
-          },
-        };
-      }
-    });
-    localStorage.setItem('customLogFormats', JSON.stringify(formatsToSave));
-    setCustomFormats(formats);
-  };
-
-  const handleAddFormat = () => {
-    setEditingFormat(null);
-    formatForm.resetFields();
-    setFormatModalVisible(true);
-  };
-
-  const handleEditFormat = (formatKey) => {
-    const format = customFormats[formatKey];
-    if (format) {
-      setEditingFormat(formatKey);
-      formatForm.setFieldsValue({
-        name: format.name,
-        pattern: format.pattern.source,
-        description: format.description,
-        fields: format.fields,
-      });
-      setFormatModalVisible(true);
-    }
-  };
-
-  const handleDeleteFormat = (formatKey) => {
-    const newFormats = { ...customFormats };
-    delete newFormats[formatKey];
-    saveCustomFormats(newFormats);
-    message.success('删除格式模板成功');
-    if (selectedFormat === formatKey) {
-      setSelectedFormat('nginx_default');
-    }
-  };
-
   const getLogFormats = () => {
-    return { ...DEFAULT_LOG_FORMATS, ...customFormats };
+    return logFormats;
   };
 
   const getAvailableColumns = () => {
@@ -456,33 +437,6 @@ const Logs = () => {
     localStorage.setItem('customLogColumns', JSON.stringify(newColumns));
     setSelectedColumns(prev => prev.filter(c => c !== columnKey));
     message.success('删除自定义列成功');
-  };
-
-  const handleFormatSubmit = () => {
-    formatForm.validateFields().then(values => {
-      const formatKey = values.name.toLowerCase().replace(/\s+/g, '_');
-      
-      try {
-        const pattern = new RegExp(values.pattern);
-        const newFormat = {
-          name: values.name,
-          pattern: pattern,
-          description: values.description,
-          fields: values.fields || ['ip', 'time', 'method', 'path', 'protocol', 'status', 'size'],
-        };
-        
-        const newFormats = { ...customFormats };
-        newFormats[formatKey] = newFormat;
-        saveCustomFormats(newFormats);
-        
-        setSelectedFormat(formatKey);
-        setFormatModalVisible(false);
-        formatForm.resetFields();
-        message.success('保存格式模板成功');
-      } catch (error) {
-        message.error('正则表达式格式错误，请检查');
-      }
-    });
   };
 
   const handleRefresh = () => {
@@ -1008,12 +962,12 @@ const Logs = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CloudServerOutlined style={{ color: '#64748B', fontSize: 14 }} />
                 <Select
-                  style={{ width: 180 }}
-                  value={selectedServer}
-                  onChange={setSelectedServer}
-                  placeholder="选择服务器"
-                  loading={serversLoading}
-                >
+                style={{ width: 180 }}
+                value={selectedServer}
+                onChange={handleServerChange}
+                placeholder="选择服务器"
+                loading={serversLoading}
+              >
                   <Option key="local" value={null}>本地服务器</Option>
                   {servers.map(server => (
                     <Option key={server.id} value={server.id}>{server.name}</Option>
@@ -1050,15 +1004,6 @@ const Logs = () => {
                   ))}
                 </Select>
               </div>
-
-              <Button
-                type="default"
-                size="small"
-                icon={<PlusOutlined />}
-                onClick={handleAddFormat}
-              >
-                自定义格式
-              </Button>
 
               {viewMode === 'columns' && (
                 <Button
@@ -1150,67 +1095,6 @@ const Logs = () => {
           </Tabs.TabPane>
         </Tabs>
       </Card>
-
-      <Modal
-        title={editingFormat ? '编辑自定义格式' : '添加自定义格式'}
-        open={formatModalVisible}
-        onOk={handleFormatSubmit}
-        onCancel={() => setFormatModalVisible(false)}
-        width={600}
-        destroyOnClose
-      >
-        <Form
-          form={formatForm}
-          layout="vertical"
-          initialValues={{
-            fields: ['ip', 'time', 'method', 'path', 'protocol', 'status', 'size'],
-          }}
-        >
-          <Form.Item
-            label="格式名称"
-            name="name"
-            rules={[{ required: true, message: '请输入格式名称' }]}
-          >
-            <Input placeholder="例如: Custom Format" />
-          </Form.Item>
-          <Form.Item
-            label="正则表达式"
-            name="pattern"
-            rules={[{ required: true, message: '请输入正则表达式' }]}
-            extra="使用捕获组来提取日志字段"
-          >
-            <TextArea rows={4} placeholder="输入正则表达式..." />
-          </Form.Item>
-          <Form.Item
-            label="字段映射"
-            name="fields"
-            rules={[{ required: true, message: '请选择字段映射' }]}
-            extra="按顺序对应正则表达式的捕获组"
-          >
-            <Select
-              mode="multiple"
-              placeholder="选择字段"
-              options={[
-                { label: 'IP地址', value: 'ip' },
-                { label: '时间', value: 'time' },
-                { label: '请求方法', value: 'method' },
-                { label: '请求路径', value: 'path' },
-                { label: '协议', value: 'protocol' },
-                { label: '状态码', value: 'status' },
-                { label: '响应大小', value: 'size' },
-                { label: '来源', value: 'referer' },
-                { label: '用户代理', value: 'userAgent' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item
-            label="描述"
-            name="description"
-          >
-            <TextArea rows={2} placeholder="格式描述..." />
-          </Form.Item>
-        </Form>
-      </Modal>
 
       <Modal
         title="列设置"
@@ -1407,67 +1291,6 @@ const Logs = () => {
           </Form.Item>
         </Form>
       </Modal>
-
-      {Object.keys(customFormats).length > 0 && (
-        <Card
-          title="自定义格式管理"
-          style={{ marginTop: 24 }}
-        >
-          <Space direction="vertical" style={{ width: '100%' }}>
-            {Object.entries(customFormats).map(([key, format]) => (
-              <div
-                key={key}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '12px 16px',
-                  backgroundColor: '#F8FAFC',
-                  borderRadius: 8,
-                  border: selectedFormat === key ? '1px solid #3B82F6' : '1px solid #E2E8F0',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 500, marginBottom: 4 }}>
-                    {format.name}
-                    {selectedFormat === key && (
-                      <Tag color="blue" style={{ marginLeft: 8 }}>当前使用</Tag>
-                    )}
-                  </div>
-                  <div style={{ color: '#64748B', fontSize: 12 }}>
-                    {format.description}
-                  </div>
-                </div>
-                <Space>
-                  <Button
-                    type="link"
-                    size="small"
-                    icon={<EditOutlined />}
-                    onClick={() => handleEditFormat(key)}
-                  >
-                    编辑
-                  </Button>
-                  <Popconfirm
-                    title="确定删除此格式吗？"
-                    onConfirm={() => handleDeleteFormat(key)}
-                    okText="确定"
-                    cancelText="取消"
-                  >
-                    <Button
-                      type="link"
-                      size="small"
-                      danger
-                      icon={<DeleteOutlined />}
-                    >
-                      删除
-                    </Button>
-                  </Popconfirm>
-                </Space>
-              </div>
-            ))}
-          </Space>
-        </Card>
-      )}
     </div>
   );
 };

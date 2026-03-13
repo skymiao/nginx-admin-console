@@ -76,6 +76,7 @@ export const logAPI = {
   getAccessLog: (params) => api.get('/logs/access', { params }),
   getErrorLog: (params) => api.get('/logs/error', { params }),
   getTraffic: (params) => api.get('/logs/traffic', { params }),
+  getAccessStats: (serverId) => api.get('/logs/access-stats', { params: { serverId } }),
 };
 
 export const historyAPI = {

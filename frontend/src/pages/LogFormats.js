@@ -15,6 +15,7 @@ import {
   Descriptions,
   Alert,
   Divider,
+  Tooltip,
 } from 'antd';
 import {
   PlusOutlined,
@@ -226,51 +227,6 @@ const LogFormats = () => {
     },
   ];
 
-  const presetFormats = [
-    {
-      label: 'Nginx Default Log Format',
-      value: 'nginx_default',
-      pattern: '^\\s*(\\S+)\\s*-\\s*(\\S+)\\s*\\[([^\\]]+)\\]\\s*"([^"]+)"\\s*(\\d{3})\\s*(\\d+)(?:\\s*"([^"]*)")?(?:\\s*"([^"]*)")?(?:\\s*"([^"]*)")?(?:\\s*\\(([^)]+)\\))?(?:\\s*@\\s*\\S+(?:\\s*\\S+)*)?\\s*$',
-      mapping: '{"ip":1,"time":3,"method":4,"path":4,"protocol":4,"status":5,"size":6,"referer":7,"userAgent":8}',
-      description: 'Nginx默认日志格式（Combined Log Format）'
-    },
-    {
-      label: 'Combined with Virtual Host',
-      value: 'combined_vhost',
-      pattern: '^(\\S+) \\S+ \\S+ \\[([^\\]]+)\\] "([A-Z]+) ([^"]+) ([^"]+)" (\\d{3}) (\\d+) "([^"]*)" "([^"]*)"$',
-      mapping: '{"ip":1,"time":2,"method":3,"path":4,"protocol":5,"status":6,"size":7,"referer":8,"userAgent":9}',
-      description: '包含虚拟主机的组合日志格式'
-    },
-    {
-      label: 'Common Log Format',
-      value: 'common',
-      pattern: '^(\\S+) \\S+ \\S+ \\[([^\\]]+)\\] "([^"]+)" (\\d{3}) (\\d+)$',
-      mapping: '{"ip":1,"time":2,"method":3,"path":3,"protocol":3,"status":4,"size":5}',
-      description: 'Apache通用日志格式'
-    },
-    {
-      label: 'JSON Format',
-      value: 'json',
-      pattern: '^\\{.*\\}$',
-      mapping: '{"ip":"ip","time":"time","method":"method","path":"path","protocol":"protocol","status":"status","size":"size","referer":"referer","userAgent":"userAgent"}',
-      description: 'JSON格式日志'
-    },
-    {
-      label: 'Custom App Log Format',
-      value: 'custom_app',
-      pattern: '^(\\d{1,3}(?:\\.\\d{1,3}){3})\\s+-\\s+ruser:\\[[^\\]]*\\]\\s+-\\s+\\[([^\\]]+)\\]\\s+-\\s+request:\\[([A-Z]+)\\s+(\\S+)\\s+([^\\]]+)\\]\\s+-\\s+channel:\\[[^\\]]*\\]\\s+-\\s+reqId:\\[[^\\]]*\\]\\s+-\\s+routeName:\\[[^\\]]*\\]\\s+-\\s+jsessionId:\\[[^\\]]*\\]\\s+-\\s+logToken:\\[[^\\]]*\\]\\s+-\\s+timestamp:\\[[^\\]]*\\]\\s+-\\s+platId:\\[[^\\]]*\\]\\s+-\\s+http_status:\\[(\\d{3})\\]\\s+-\\s+body_bytes_sent:\\[(\\d+)\\]\\s+-\\s+http_referer:\\[(.*?)\\]\\s+-\\s+http_user_agent:\\[([^\\]]*)\\]',
-      mapping: '{"ip":1,"time":2,"method":3,"path":4,"protocol":5,"status":6,"size":7,"referer":8,"userAgent":9}',
-      description: '自定义应用日志格式'
-    },
-    {
-      label: 'Custom',
-      value: 'custom',
-      pattern: '',
-      mapping: '',
-      description: '自定义格式'
-    }
-  ];
-
   return (
     <div style={{ padding: 24 }}>
       <Card
@@ -357,10 +313,17 @@ const LogFormats = () => {
             label="格式名称"
             rules={[{ required: true, message: '请选择或输入格式名称' }]}
           >
-            <Select placeholder="选择预设格式或输入自定义名称">
-              {presetFormats.map(format => (
-                <Select.Option key={format.value} value={format.value}>
-                  {format.label}
+            <Select 
+              placeholder="选择预设格式或输入自定义名称"
+              showSearch
+              allowClear
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {formats.map(format => (
+                <Select.Option key={format.id} value={format.format_name} label={format.format_name}>
+                  {format.format_name}
                 </Select.Option>
               ))}
             </Select>
@@ -372,12 +335,12 @@ const LogFormats = () => {
           >
             {({ getFieldValue }) => {
               const formatName = getFieldValue('format_name');
-              const preset = presetFormats.find(f => f.value === formatName);
+              const preset = formats.find(f => f.format_name === formatName);
               
-              if (preset && preset.pattern) {
+              if (preset && preset.format_pattern) {
                 form.setFieldsValue({
-                  format_pattern: preset.pattern,
-                  field_mapping: preset.mapping,
+                  format_pattern: preset.format_pattern,
+                  field_mapping: preset.field_mapping,
                   description: preset.description,
                 });
               }

@@ -30,41 +30,41 @@ const insertDefaultFormats = () => {
     {
       server_id: null,
       server_ips: JSON.stringify(['default']),
-      format_name: 'nginx_default',
+      format_name: 'Nginx Default Log Format',
       format_pattern: '^\\s*(\\S+)\\s*-\\s*(\\S+)\\s*\\[([^\\]]+)\\]\\s*"([^"]+)"\\s*(\\d{3})\\s*(\\d+)(?:\\s*"([^"]*)")?(?:\\s*"([^"]*)")?(?:\\s*"([^"]*)")?(?:\\s*\\(([^)]+)\\))?(?:\\s*@\\s*\\S+(?:\\s*\\S+)*)?\\s*$',
-      field_mapping: '{"ip":1,"time":3,"method":4,"path":4,"protocol":4,"status":5,"size":6,"referer":7,"userAgent":8}',
+      field_mapping: '["ip","time","method","path","protocol","status","size","referer","userAgent"]',
       description: 'Nginx默认日志格式（Combined Log Format）'
     },
     {
       server_id: null,
       server_ips: JSON.stringify(['default']),
-      format_name: 'combined_vhost',
+      format_name: 'Combined with Virtual Host',
       format_pattern: '^(\\S+) \\S+ \\S+ \\[([^\\]]+)\\] "([A-Z]+) ([^"]+) ([^"]+)" (\\d{3}) (\\d+) "([^"]*)" "([^"]*)"$',
-      field_mapping: '{"ip":1,"time":2,"method":3,"path":4,"protocol":5,"status":6,"size":7,"referer":8,"userAgent":9}',
+      field_mapping: '["ip","time","method","path","protocol","status","size","referer","userAgent"]',
       description: '包含虚拟主机的组合日志格式'
     },
     {
       server_id: null,
       server_ips: JSON.stringify(['default']),
-      format_name: 'common',
+      format_name: 'Common Log Format',
       format_pattern: '^(\\S+) \\S+ \\S+ \\[([^\\]]+)\\] "([^"]+)" (\\d{3}) (\\d+)$',
-      field_mapping: '{"ip":1,"time":2,"method":3,"path":3,"protocol":3,"status":4,"size":5}',
+      field_mapping: '["ip","time","method","path","protocol","status","size"]',
       description: 'Apache通用日志格式'
     },
     {
       server_id: null,
       server_ips: JSON.stringify(['default']),
-      format_name: 'json',
+      format_name: 'JSON Format',
       format_pattern: '^\\{.*\\}$',
-      field_mapping: '{"ip":"ip","time":"time","method":"method","path":"path","protocol":"protocol","status":"status","size":"size","referer":"referer","userAgent":"userAgent"}',
+      field_mapping: '["ip","time","method","path","protocol","status","size","referer","userAgent"]',
       description: 'JSON格式日志'
     },
     {
       server_id: null,
       server_ips: JSON.stringify(['default']),
-      format_name: 'custom_app',
+      format_name: 'Custom App Log Format',
       format_pattern: '^(\\d{1,3}(?:\\.\\d{1,3}){3})\\s+-\\s+ruser:\\[[^\\]]*\\]\\s+-\\s+\\[([^\\]]+)\\]\\s+-\\s+request:\\[([A-Z]+)\\s+(\\S+)\\s+([^\\]]+)\\]\\s+-\\s+channel:\\[[^\\]]*\\]\\s+-\\s+reqId:\\[[^\\]]*\\]\\s+-\\s+routeName:\\[[^\\]]*\\]\\s+-\\s+jsessionId:\\[[^\\]]*\\]\\s+-\\s+logToken:\\[[^\\]]*\\]\\s+-\\s+timestamp:\\[[^\\]]*\\]\\s+-\\s+platId:\\[[^\\]]*\\]\\s+-\\s+http_status:\\[(\\d{3})\\]\\s+-\\s+body_bytes_sent:\\[(\\d+)\\]\\s+-\\s+http_referer:\\[(.*?)\\]\\s+-\\s+http_user_agent:\\[([^\\]]*)\\]',
-      field_mapping: '{"ip":1,"time":2,"method":3,"path":4,"protocol":5,"status":6,"size":7,"referer":8,"userAgent":9}',
+      field_mapping: '["ip","time","method","path","protocol","status","size","referer","userAgent"]',
       description: '自定义应用日志格式'
     }
   ];

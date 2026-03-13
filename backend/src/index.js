@@ -17,8 +17,10 @@ const { addIsLocalColumn } = require('./migrations/addIsLocalField');
 const { createServerLogFormatsTable, insertDefaultFormats } = require('./migrations/createServerLogFormats');
 const { migrate: addSettingPermissions } = require('./migrations/addSettingPermissions');
 const { migrate: fixLogFormatsDuplicates } = require('./migrations/fixLogFormatsDuplicates');
+const { updateLogFormatNames } = require('./migrations/updateLogFormatNames');
 const addPerformanceIndexes = require('./migrations/addPerformanceIndexes');
 const { migrate: addLogFormatIdToServers } = require('./migrations/addLogFormatIdToServers');
+const { syncLogFormatsWithFrontend } = require('./migrations/syncLogFormatsWithFrontend');
 const { errorHandler } = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimit');
 const { getCorsConfig } = require('./utils/corsConfig');
@@ -45,6 +47,8 @@ fixLogFormatsDuplicates();
 addSettingPermissions();
 addPerformanceIndexes();
 addLogFormatIdToServers();
+syncLogFormatsWithFrontend();
+updateLogFormatNames();
 
 app.use(helmet({
   contentSecurityPolicy: {

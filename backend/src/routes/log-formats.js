@@ -11,9 +11,15 @@ router.get('/', requirePermission('setting:read'), (req, res) => {
     let query = 'SELECT * FROM server_log_formats ORDER BY created_at DESC';
     const formats = db.prepare(query).all();
     
+    const result = formats.map(format => ({
+      ...format,
+      server_ips: format.server_ips ? JSON.parse(format.server_ips) : [],
+      field_mapping: format.field_mapping ? JSON.parse(format.field_mapping) : []
+    }));
+    
     res.json({
       success: true,
-      data: formats
+      data: result
     });
   } catch (error) {
     console.error('[LogFormats] Error listing formats:', error);
@@ -36,9 +42,14 @@ router.get('/:id', requirePermission('setting:read'), (req, res) => {
       });
     }
     
+    const result = {
+      ...format,
+      server_ips: format.server_ips ? JSON.parse(format.server_ips) : []
+    };
+    
     res.json({
       success: true,
-      data: format
+      data: result
     });
   } catch (error) {
     console.error('[LogFormats] Error getting format:', error);

@@ -214,7 +214,7 @@ const Dashboard = () => {
         });
         return;
       }
-      const response = await logAPI.getAccessLog({ file: 'access.log', lines: 1000, serverId });
+      const response = await logAPI.getAccessStats(serverId);
       const data = response.data?.data || response.data || {};
       const backendStats = data.stats || { success: 0, error: 0, redirect: 0, statusCodes: {}, methods: {} };
       const totalRequests = data.total || 0;
@@ -262,7 +262,7 @@ const Dashboard = () => {
 
   const loadTrafficStats = async (serverId) => {
     try {
-      const response = await logAPI.getTraffic({ file: 'access.log', serverId, hours: 24 });
+      const response = await logAPI.getTraffic({ serverId, hours: 24 });
       const data = response.data?.data || response.data || {};
       setTrafficStats(data);
     } catch (error) {
