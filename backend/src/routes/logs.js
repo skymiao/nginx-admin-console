@@ -470,6 +470,9 @@ router.get('/access-stats', requirePermission('log:read'), async (req, res) => {
               stats.methods[method] = (stats.methods[method] || 0) + 1;
             }
           });
+        } catch (error) {
+          console.error(`[Logs API] 处理文件 ${logFile} 失败:`, error.message);
+        }
       }
 
       const statsElapsedTime = Date.now() - statsStartTime;
@@ -621,10 +624,6 @@ router.get('/traffic', requirePermission('log:read'), async (req, res) => {
               }
             }
           });
-        } catch (error) {
-          console.error(`[Traffic API] 处理文件 ${logFile} 失败:`, error.message);
-        }
-      }
 
       const statsElapsedTime = Date.now() - statsStartTime;
       console.log(`[Traffic API] ✓ 日志解析完成 - 耗时: ${statsElapsedTime}ms`);
@@ -670,7 +669,6 @@ router.get('/traffic', requirePermission('log:read'), async (req, res) => {
               }
             }
           });
-      }
 
       const statsElapsedTime = Date.now() - statsStartTime;
       console.log(`[Traffic API] ✓ 日志解析完成 - 耗时: ${statsElapsedTime}ms`);
