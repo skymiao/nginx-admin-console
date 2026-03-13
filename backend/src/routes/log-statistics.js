@@ -119,16 +119,21 @@ router.get('/statistics', requirePermission('log:read'), async (req, res) => {
 
     if (server && !server.is_default) {
       const logPath = server.nginx_log_path || '/var/log/nginx';
-      const accessLogPath = path.join(logPath, 'access.log');
-      const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n ${lines} ${accessLogPath}`);
+      const { output } = await executeRemoteCommand(server, `cat ${logPath}/*access.log 2>/dev/null | tail -n ${lines} || echo ""`);
       content = output || '';
     } else {
       const logPath = process.env.NGINX_LOG_PATH || '/var/log/nginx';
-      const accessLogPath = path.join(logPath, 'access.log');
-
-      if (fs.existsSync(accessLogPath)) {
-        content = fs.readFileSync(accessLogPath, 'utf-8');
+      const files = fs.readdirSync(logPath);
+      const accessLogFiles = files.filter(file => file.includes('access.log'));
+      
+      let allContent = '';
+      for (const fileName of accessLogFiles) {
+        const filePath = path.join(logPath, fileName);
+        if (fs.existsSync(filePath)) {
+          allContent += fs.readFileSync(filePath, 'utf-8');
+        }
       }
+      content = allContent;
     }
 
     const logs = parseAccessLog(content);
@@ -151,16 +156,21 @@ router.get('/trends', requirePermission('log:read'), async (req, res) => {
 
     if (server && !server.is_default) {
       const logPath = server.nginx_log_path || '/var/log/nginx';
-      const accessLogPath = path.join(logPath, 'access.log');
-      const { output } = await executeRemoteCommand(server, `test -f ${accessLogPath} && tail -n ${lines} ${accessLogPath}`);
+      const { output } = await executeRemoteCommand(server, `cat ${logPath}/*access.log 2>/dev/null | tail -n ${lines} || echo ""`);
       content = output || '';
     } else {
       const logPath = process.env.NGINX_LOG_PATH || '/var/log/nginx';
-      const accessLogPath = path.join(logPath, 'access.log');
-
-      if (fs.existsSync(accessLogPath)) {
-        content = fs.readFileSync(accessLogPath, 'utf-8');
+      const files = fs.readdirSync(logPath);
+      const accessLogFiles = files.filter(file => file.includes('access.log'));
+      
+      let allContent = '';
+      for (const fileName of accessLogFiles) {
+        const filePath = path.join(logPath, fileName);
+        if (fs.existsSync(filePath)) {
+          allContent += fs.readFileSync(filePath, 'utf-8');
+        }
       }
+      content = allContent;
     }
 
     const logs = parseAccessLog(content);
